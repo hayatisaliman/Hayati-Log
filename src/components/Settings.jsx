@@ -5,7 +5,7 @@ import { ColorSwatch } from './ColorPicker.jsx'
 import { Chip } from './cells.jsx'
 import { DatePicker } from './DatePicker.jsx'
 import { DAY_NAMES, fmtClock, isoOf, longDate } from '../lib/time.js'
-import { update, replaceData, useStatus, findField, listBackups, readBackup } from '../lib/store.js'
+import { update, replaceData, useStatus, findField, listBackups, readBackup, MOD } from '../lib/store.js'
 
 export function Settings({ data, toast }) {
   const status = useStatus()
@@ -38,7 +38,7 @@ export function Settings({ data, toast }) {
   const importData = (next) => {
     if (!Array.isArray(next?.rows)) throw new Error('Not a Hayati Log file')
     replaceData(next)
-    toast(`Imported ${next.rows.length} days · ⌘Z to undo`)
+    toast(`Imported ${next.rows.length} days · ${MOD}Z to undo`)
   }
 
   const importJson = async (file) => {
@@ -210,7 +210,7 @@ export function Settings({ data, toast }) {
                     if (confirmDel !== c.id) return setConfirmDel(c.id)
                     setConfirmDel(null)
                     update((d) => { d.categories = d.categories.filter((x) => x.id !== c.id); for (const r of d.rows) for (const b of r.blocks) if (b.cats?.includes(c.id)) b.cats = b.cats.filter((x) => x !== c.id) })
-                    toast(`Deleted ${c.name} · ⌘Z to undo`)
+                    toast(`Deleted ${c.name} · ${MOD}Z to undo`)
                   }}>{confirmDel === c.id ? 'Confirm delete' : 'Delete permanently'}</button>
               </div>
             ))}
@@ -239,7 +239,7 @@ export function Settings({ data, toast }) {
       </section>
 
       <section className="card">
-        <div className="card-head"><h3>Restore Data</h3><span className="section-meta">Replaces everything · ⌘Z to undo</span></div>
+        <div className="card-head"><h3>Restore Data</h3><span className="section-meta">Replaces everything · {MOD}Z to undo</span></div>
         <BackupList onImport={(name) => readBackup(name).then(importData).catch((e) => toast(String(e.message || e)))}>
           <button className="btn" onClick={() => fileRef.current.click()}>Import From File</button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = '' }} />

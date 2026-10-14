@@ -22,5 +22,6 @@ export async function mediaUrl(src) {
   if (!isTauri) return `/api/media/${encodeURIComponent(name)}`
   const { invoke, convertFileSrc } = await core()
   tauriDir = tauriDir || invoke('media_dir')
-  return convertFileSrc(`${await tauriDir}/${name}`)
+  const dir = await tauriDir
+  return convertFileSrc(`${dir}${dir.includes('\\') ? '\\' : '/'}${name}`)
 }

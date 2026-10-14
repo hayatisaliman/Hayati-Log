@@ -12,7 +12,7 @@ import { en } from '@blocknote/core/locales'
 import { Plugin } from 'prosemirror-state'
 import { detectEdgePosition, locales as columnLocales, multiColumnDropCursor, withMultiColumn } from '@blocknote/xl-multi-column'
 import { DEFAULT_NOTE_COLORS, NOTE_COLOR_NAMES, hueName } from '../lib/schema.js'
-import { getData, releaseEditor, setEditor } from '../lib/store.js'
+import { getData, releaseEditor, setEditor, MOD } from '../lib/store.js'
 import { shortDate } from '../lib/time.js'
 import { Icon } from './icons.jsx'
 import { videoBlock } from './VideoBlock.jsx'
@@ -260,7 +260,7 @@ function DuplicateItem() {
   if (!block) return null
   return (
     <C.Generic.Menu.Item className="bn-menu-item" onClick={() => duplicateBlock(editor, block)}>
-      <span className="move-item">Duplicate<span className="move-chev">⌘D</span></span>
+      <span className="move-item">Duplicate<span className="move-chev">{MOD}D</span></span>
     </C.Generic.Menu.Item>
   )
 }

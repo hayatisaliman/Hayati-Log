@@ -5,7 +5,7 @@ import { Popover, Menu } from './Popover.jsx'
 import { NoteEditor, blocksToText } from './NoteEditor.jsx'
 import { RichInput } from './FormatBar.jsx'
 import { VideoAutoplay, hasVideo } from './VideoBlock.jsx'
-import { update } from '../lib/store.js'
+import { update, MOD } from '../lib/store.js'
 import { Toggle } from './Settings.jsx'
 
 const fmtDate = (ts) => {
@@ -107,7 +107,7 @@ export function NotePanel({ data, noteId, onClose, focusTitle, width, setWidth, 
             ...data.noteGroups.filter((g) => g.id !== note.group).map((g) => ({ icon: 'arrow-right', label: `Move to ${g.name}`, run: () => { flush(); moveNote(note.id, { group: g.id }) } })),
             ...(note.group ? [{ icon: 'arrow-out', label: 'Remove from group', run: () => { flush(); moveNote(note.id, { group: null }) } }] : []),
             '-',
-            { icon: 'x', label: 'Delete note', danger: true, run: () => { pending.current = null; clearTimeout(timer.current); deleteNote(note.id); onClose(); toast?.('Note deleted · ⌘Z to undo') } },
+            { icon: 'x', label: 'Delete note', danger: true, run: () => { pending.current = null; clearTimeout(timer.current); deleteNote(note.id); onClose(); toast?.(`Note deleted · ${MOD}Z to undo`) } },
           ]} />
         </Popover>
       )}

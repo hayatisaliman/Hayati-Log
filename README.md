@@ -19,6 +19,10 @@ npm run tauri:build
 
 The app lands in `src-tauri/target/release/bundle/macos/Hayati Log.app`, and an installer disk image in `src-tauri/target/release/bundle/dmg/Hayati Log_<version>_aarch64.dmg`.
 
+Build the Windows installer on GitHub: open **Actions → Windows build → Run workflow** (or push a `v*` tag). When it finishes, download the `hayati-log-windows` artifact from the run page. It contains `Hayati Log_<version>_x64-setup.exe` and the bare `hayati-log.exe`. To build on a Windows machine instead, run `npm run tauri:build:win`.
+
+On Windows the data file is `%APPDATA%\com.hayati.report\report.json`.
+
 ## Data
 
 All data lives in one JSON file:

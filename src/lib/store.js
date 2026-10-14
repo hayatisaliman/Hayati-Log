@@ -6,6 +6,7 @@ const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const sandbox = !isTauri && typeof location !== 'undefined' && new URLSearchParams(location.search).has('sandbox')
 const api = (q = '') => `/api/data${sandbox ? `?sandbox=1${q ? `&${q}` : ''}` : q ? `?${q}` : ''}`
 let invoke = null
+export const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl+'
 
 let data = null
 let status = { saving: false, savedAt: null, error: null, file: '' }
