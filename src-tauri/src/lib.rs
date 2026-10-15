@@ -130,20 +130,13 @@ fn read_backup(app: tauri::AppHandle, name: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn export_data(app: tauri::AppHandle, json: String, name: String) -> Result<String, String> {
-    if name.is_empty() || !name.ends_with(".json") || !name.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c)) {
-        return Err("Invalid file name".into());
+fn write_export(path: String, text: String) -> Result<(), String> {
+    let file = PathBuf::from(&path);
+    match file.extension().and_then(|e| e.to_str()) {
+        Some("json") | Some("md") => {}
+        _ => return Err("Only .json and .md files can be exported".into()),
     }
-    let dir = app.path().download_dir().map_err(|e| e.to_string())?;
-    let stem = name.trim_end_matches(".json");
-    let mut file = dir.join(&name);
-    let mut n = 1;
-    while file.exists() {
-        file = dir.join(format!("{stem}-{n}.json"));
-        n += 1;
-    }
-    fs::write(&file, json).map_err(|e| e.to_string())?;
-    Ok(file.to_string_lossy().into_owned())
+    fs::write(&file, text).map_err(|e| e.to_string())
 }
 
 fn valid_media_name(name: &str) -> bool {
@@ -172,7 +165,8 @@ fn save_media(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![load_data, save_data, data_path, list_backups, read_backup, media_dir, save_media, export_data])
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![load_data, save_data, data_path, list_backups, read_backup, media_dir, save_media, write_export])
         .run(tauri::generate_context!())
         .expect("error while running Hayati Log");
 }

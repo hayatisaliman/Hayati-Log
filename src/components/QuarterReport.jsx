@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { COLORS, blockEnd, cycleHistory, cycleInfo } from '../lib/schema.js'
 import { MONTHS, daysInMonth, fmtClock, fmtDuration, pad } from '../lib/time.js'
-import { avg, sleepOn } from '../lib/report.js'
+import { avg, sleepOn, clockWindow, inWindow } from '../lib/report.js'
 import { catMeta } from './TimeBlocks.jsx'
 import { useTip } from './Tip.jsx'
 import { ScrollTabs } from './ScrollTabs.jsx'
 import { Icon } from './icons.jsx'
 
 const QUARTERS = [1, 2, 3, 4]
-const Q_COLORS = { 1: 'var(--cyan)', 2: 'var(--blue)', 3: 'var(--orange)', 4: 'var(--red)' }
+const Q_COLORS = { 1: 'var(--cyan)', 2: 'var(--green)', get 3() { return COLORS.light }, 4: 'var(--pink)' }
 const WEEKS = 13
 const monthsOf = (year, q) => [0, 1, 2].map((i) => `${year}-${pad((q - 1) * 3 + i + 1)}`)
 const datesOf = (month) => Array.from({ length: daysInMonth(month) }, (_, i) => `${month}-${pad(i + 1)}`)
 const qLabel = (q) => `Q${q}`
-const qRange = (q) => `${MONTHS[(q - 1) * 3].slice(0, 3)} – ${MONTHS[(q - 1) * 3 + 2].slice(0, 3)}`
+export const qRange = (q) => `${MONTHS[(q - 1) * 3].slice(0, 3)} – ${MONTHS[(q - 1) * 3 + 2].slice(0, 3)}`
 const hours = (m) => (m == null ? '—' : `${Math.round(m / 6) / 10}h`)
 const pctText = (v) => (v == null ? '—' : `${Math.round(v * 100)}%`)
 
@@ -46,7 +46,7 @@ function weekly(dates, get) {
 }
 
 // quarterStats — everything the page compares, for one quarter
-function quarterStats(data, year, q, now, rowOf) {
+export function quarterStats(data, year, q, now, rowOf) {
   const dates = monthsOf(year, q).flatMap(datesOf)
   const past = dates.filter((d) => d <= now.today)
   const rows = past.map((d) => rowOf[d]).filter(Boolean)
@@ -223,7 +223,7 @@ function QuarterLines({ series, frac, ticks, fmt, refLine, H, L, bind }) {
     const rx = e.clientX - e.currentTarget.getBoundingClientRect().left
     const i = Math.max(0, Math.min(WEEKS - 1, Math.round(((rx - L) / (w - L - R)) * (WEEKS - 1))))
     setHover(i)
-    bind(<><b>Week {i + 1}</b>{series.map((s) => <div key={s.q} className="lc-tip-row"><span className="lc-dot" style={{ background: Q_COLORS[s.q] }} />{qLabel(s.q)}<span className="grow" /><span className="num">{s.points[i] == null ? '—' : fmt(s.points[i])}</span></div>)}</>).onMouseMove(e)
+    bind(<><b>Week {i + 1}</b>{series.map((s) => <div key={s.key || s.q} className="lc-tip-row"><span className="lc-dot" style={{ background: s.dot || Q_COLORS[s.q] }} />{qLabel(s.q)}{s.name ? ` ${s.name}` : ''}<span className="grow" /><span className="num">{s.points[i] == null ? '—' : fmt(s.points[i])}</span></div>)}</>).onMouseMove(e)
   }
   const leave = () => { setHover(null); bind(null).onMouseLeave() }
   return (
@@ -242,9 +242,9 @@ function QuarterLines({ series, frac, ticks, fmt, refLine, H, L, bind }) {
           const pts = s.points.map((v, i) => (v == null ? null : i)).filter((i) => i != null)
           const last = pts[pts.length - 1]
           return (
-            <g key={s.q}>
+            <g key={s.key || s.q}>
               {pts.slice(1).map((b, k) => <line key={b} className={`lc-line ${b - pts[k] > 1 ? 'gap' : ''}`} style={{ stroke: Q_COLORS[s.q] }} x1={px(pts[k])} y1={py(s.points[pts[k]])} x2={px(b)} y2={py(s.points[b])} />)}
-              {pts.map((i) => <circle key={i} cx={px(i)} cy={py(s.points[i])} r={hover === i ? 5.5 : 4} style={{ fill: Q_COLORS[s.q] }} stroke="var(--surface)" strokeWidth="2" />)}
+              {pts.map((i) => <circle key={i} cx={px(i)} cy={py(s.points[i])} r={hover === i ? 5.5 : 4} style={{ fill: s.dot || Q_COLORS[s.q] }} stroke="var(--surface)" strokeWidth="2" />)}
               {last != null && <text className="q-line-label" x={px(last) + 8} y={py(s.points[last])} dy="0.35em">{qLabel(s.q)}</text>}
             </g>
           )
@@ -276,21 +276,26 @@ function StateLines({ data, stats, rowOf, bind }) {
   )
 }
 
-// SleepLines — weekly average sleep, one line per quarter; the scale fits the data so close weeks stay readable
+// SleepLines — weekly average Start and End per quarter on a 24h axis; both lines take the quarter colour, dots mark Start and End
 function SleepLines({ stats, rowOf, now, bind }) {
-  const series = stats.map((s) => ({ q: s.q, points: weekly(s.dates, (d) => (d <= now.today ? sleepOn(rowOf, d)?.m ?? null : null)) }))
-  const all = series.flatMap((s) => s.points).filter((v) => v != null)
-  const lo = all.length ? Math.max(0, Math.floor(Math.min(...all) / 60) - 1) : 4
-  const hi = all.length ? Math.min(14, Math.ceil(Math.max(...all) / 60) + 1) : 10
-  const step = hi - lo > 6 ? 2 : 1
-  const ticks = []
-  for (let h = lo; h <= hi; h += step) ticks.push({ v: h * 60, label: `${h}h` })
+  const val = (d, key) => (d <= now.today ? rowOf[d]?.cells[key] ?? null : null)
+  const w0 = clockWindow(stats.flatMap((s) => s.dates.flatMap((d) => [val(d, 'start'), val(d, 'end')])).filter((v) => v != null))
+  const kinds = [{ key: 'start', name: 'Start', dot: COLORS.orange }, { key: 'end', name: 'End', dot: COLORS.blue }]
+  const series = stats.flatMap((s) => kinds.map((k) => ({
+    key: `${s.q}-${k.key}`, q: s.q, name: k.name, dot: k.dot, kind: k.key,
+    points: weekly(s.dates, (d) => { const v = val(d, k.key); return v == null ? null : inWindow(v, w0) }),
+  })))
+  const avgOf = (kind) => avg(series.filter((s) => s.kind === kind).flatMap((s) => s.points).filter((v) => v != null))
+  const ticks = [6, 5, 4, 3, 2, 1, 0].map((k) => ({ v: w0 + k * 240, label: fmtClock(w0 + k * 240, { compact: true }) }))
   return (
     <div className="sleep-chart q-sleep">
-      <div className="mini-head">Sleep pattern{all.length ? <span className="muted"> · avg <b className="num">{fmtDuration(Math.round(avg(all)))}</b></span> : null}</div>
-      <QuarterLines series={series} H={260} L={34} bind={bind}
-        frac={(v) => Math.max(0, Math.min(1, (v - lo * 60) / ((hi - lo) * 60)))} ticks={ticks}
-        refLine={7 >= lo && 7 <= hi ? { v: 7 * 60, label: '7h' } : null} fmt={(v) => fmtDuration(Math.round(v))} />
+      <div className="mini-head">Sleep pattern<span className="muted">{kinds.map((k) => avgOf(k.key) != null && <span key={k.key}> · avg {k.name.toLowerCase()} <b className="num">{fmtClock(avgOf(k.key), { compact: true })}</b></span>)}</span></div>
+      <QuarterLines series={series} H={300} L={50} bind={bind}
+        frac={(v) => 1 - (v - w0) / 1440} ticks={ticks} fmt={(v) => fmtClock(v)} />
+      <div className="legend lc-legend">
+        {kinds.map((k) => <span key={k.key} className="legend-item"><span className="lc-dot" style={{ background: k.dot }} />{k.name}</span>)}
+        <span className="muted">Line colour is the quarter</span>
+      </div>
     </div>
   )
 }

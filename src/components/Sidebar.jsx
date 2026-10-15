@@ -34,10 +34,8 @@ const nextMonth = (key) => {
   return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
 }
 
-export function Sidebar({ data, view, setView, weekFocus, onWeekMonth, month, setMonth, now, status, onGoToDay, openNoteId, onOpenNote, searchRef }) {
+export function Sidebar({ data, view, setView, onWeekMonth, month, setMonth, now, status, onGoToDay, openNoteId, onOpenNote, searchRef }) {
   const [closedYears, setClosedYears] = usePref('hr.closedYears', [])
-  const [closedWeekYears, setClosedWeekYears] = usePref('hr.closedWeekYears', [])
-  const weekYears = useMemo(() => groupByYear(weeklyMonths(data, now.today).reverse()), [data.weeks, data.weekMonths, now.today])
 
   const months = useMemo(() => {
     const set = new Set([...data.rows.map((r) => monthKey(r.date)), ...(data.months || []), monthKey(now.today)])
@@ -58,7 +56,6 @@ export function Sidebar({ data, view, setView, weekFocus, onWeekMonth, month, se
     e.stopPropagation()
     const next = nextMonth(weeklyMonths(data, now.today)[0])
     update((d) => { d.weekMonths = [...new Set([...(d.weekMonths || []), next])] })
-    setClosedWeekYears(closedWeekYears.filter((y) => y !== next.slice(0, 4)))
     onWeekMonth(next)
   }
 
@@ -135,23 +132,6 @@ export function Sidebar({ data, view, setView, weekFocus, onWeekMonth, month, se
         <div role="button" className={`nav ${view === 'weekly' ? 'on' : ''}`} onClick={() => setView('weekly')}>
           <span className="nav-ico"><Icon name="layers" /></span>Weekly Plan
           <button className="nav-add" title="Plan next month" onClick={addWeekMonth}><Icon name="plus" size={14} /></button>
-        </div>
-        <div className="nav-sub">
-          {weekYears.map(([y, ms]) => {
-            const closed = closedWeekYears.includes(y)
-            return (
-              <div key={y} className="year">
-                <button className="nav-year" onClick={() => setClosedWeekYears(closed ? closedWeekYears.filter((x) => x !== y) : [...closedWeekYears, y])}>
-                  <span className={`caret ${closed ? '' : 'open'}`}><Icon name="chevron" size={11} /></span>{y}
-                </button>
-                {!closed && ms.map((m) => (
-                  <button key={m} className={`nav-month ${view === 'weekly' && weekFocus?.month === m ? 'on' : ''}`} onClick={() => onWeekMonth(m)}>
-                    <span className="nav-month-name">{MONTHS[+m.slice(5) - 1]}</span>
-                  </button>
-                ))}
-              </div>
-            )
-          })}
         </div>
         <button className={`nav ${view === 'report' ? 'on' : ''}`} onClick={() => setView('report')}><span className="nav-ico"><Icon name="calendar-check" /></span>Monthly Report</button>
         <button className={`nav ${view === 'quarters' ? 'on' : ''}`} onClick={() => setView('quarters')}><span className="nav-ico"><Icon name="pie" /></span>Quarterly Report</button>
@@ -273,7 +253,7 @@ function ChoresNav({ data, on, onOpen }) {
           <Menu onPick={() => setMenu(null)} items={[
             { icon: 'pen-line', label: 'Rename', run: () => setRenaming(true) },
             { icon: 'smile', label: 'Change icon', run: () => setIconPick(true) },
-            { icon: 'plus', label: 'New Section', run: () => { addChoreSection(); onOpen() } },
+            { icon: 'plus', label: 'New section page', run: () => { addChoreSection(); onOpen() } },
           ]} />
         </Popover>
       )}

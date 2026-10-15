@@ -15,13 +15,13 @@ const PALETTE = { ...DEFAULT_PALETTE }
 
 export const ACCENT_USES = {
   gray: 'Proliferative cycle days, uncategorised time',
-  light: 'Tag and group colour option',
+  light: 'Tag and group colour option, Q3 lines',
   cyan: 'Today and now markers, sort arrow, ticks, ovulation, Week 1, Q1 lines',
-  blue: 'Text selection, switches, picked date, luteal phase, Week 2, Q2 lines',
-  green: 'On-time cycle status',
-  orange: 'Note header date, weekends, late cycle, carried to-dos, Week 3, Q3 lines',
-  red: 'Period days, delete actions, errors, Week 4, Q4 lines',
-  pink: 'Tag and group colour option',
+  blue: 'Text selection, switches, picked date, luteal phase, End (bedtime) dots, Week 2',
+  green: 'On-time cycle status, Q2 lines',
+  orange: 'Note header date, weekends, late cycle, carried to-dos, Start (wake) dots, Week 3',
+  red: 'Period days, delete actions, errors, Week 4',
+  pink: 'Tag and group colour option, Q4 lines',
 }
 export const NOTE_COLOR_NAMES = ['gray', 'red', 'orange', 'yellow', 'green', 'blue']
 const RETIRED_NOTE_COLORS = ['brown', 'purple', 'pink']

@@ -11,3 +11,17 @@ export function sleepOn(rowOf, d) {
 }
 
 export const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null)
+
+// clockWindow — start of the 24h window (on a 4-hour mark) whose edge has the fewest times near it
+export function clockWindow(values) {
+  const tod = values.map((v) => ((v % 1440) + 1440) % 1440)
+  let best = 0
+  let bestN = Infinity
+  for (let w = 0; w < 1440; w += 240) {
+    const n = tod.filter((t) => { const d = Math.abs(t - w); return Math.min(d, 1440 - d) < 120 }).length
+    if (n < bestN) { best = w; bestN = n }
+  }
+  return best
+}
+
+export const inWindow = (v, w0) => w0 + ((((v - w0) % 1440) + 1440) % 1440)

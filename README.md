@@ -21,6 +21,8 @@ The app lands in `src-tauri/target/release/bundle/macos/Hayati Log.app`, and an 
 
 Build the Windows installer on GitHub: open **Actions → Windows build → Run workflow** (or push a `v*` tag). When it finishes, download the `hayati-log-windows` artifact from the run page. It contains `Hayati Log_<version>_x64-setup.exe` and the bare `hayati-log.exe`. To build on a Windows machine instead, run `npm run tauri:build:win`.
 
+Ready-made installers for the current version are kept in `release/`: the Mac `.dmg`, the Windows `-setup.exe` and the bare `hayati-log.exe`. Older versions are removed when a new one is added.
+
 On Windows the data file is `%APPDATA%\hayati.log\report.json`.
 
 ## Data

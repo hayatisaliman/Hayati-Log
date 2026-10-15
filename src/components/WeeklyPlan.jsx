@@ -4,6 +4,7 @@ import { update } from '../lib/store.js'
 import { BlockEditor, MoveToItem, isDoneToggle, moveBlockTo } from './NoteEditor.jsx'
 import { Popover } from './Popover.jsx'
 import { Icon } from './icons.jsx'
+import { ScrollTabs } from './ScrollTabs.jsx'
 
 const editors = new Map()
 
@@ -53,23 +54,27 @@ export function weeklyMonths(data, today) {
 export function WeeklyPlan({ data, now, focus }) {
   const months = useMemo(() => weeklyMonths(data, now.today), [data.weeks, data.weekMonths, now.today])
   const latest = months[0]
+  const years = useMemo(() => [...new Set(months.map((m) => m.slice(0, 4)))], [months])
+  const [year, setYear] = useState(() => (focus?.month || now.today).slice(0, 4))
+  const shown = years.includes(year) ? year : now.today.slice(0, 4)
+  useEffect(() => { if (focus) setYear(focus.month.slice(0, 4)) }, [focus])
   useEffect(() => {
     const el = focus && document.getElementById(`wp-${focus.month}`)
     const box = el?.closest('.weekly')
     if (box) box.scrollTo({ top: box.scrollTop + el.getBoundingClientRect().top - box.getBoundingClientRect().top - 12, behavior: 'smooth' })
-  }, [focus])
+  }, [focus, shown])
 
   return (
     <div className="weekly">
       <div className="view-head">
         <h1 className="view-title">Weekly Plan</h1>
-        <div className="grow" />
-        <button className="btn primary" onClick={() => update((d) => { d.weekMonths = [...new Set([...(d.weekMonths || []), nextMonthKey(latest)])] })}>
+        <ScrollTabs items={years} value={shown} onPick={setYear} />
+        <button className="btn primary" onClick={() => { update((d) => { d.weekMonths = [...new Set([...(d.weekMonths || []), nextMonthKey(latest)])] }); setYear(nextMonthKey(latest).slice(0, 4)) }}>
           + Plan {MONTHS[+nextMonthKey(latest).slice(5) - 1]}
         </button>
       </div>
       <MovePanel />
-      {months.map((m) => <MonthRow key={m} month={m} data={data} now={now} moveMonths={[nextMonthKey(latest), ...months].sort()} />)}
+      {months.filter((m) => m.startsWith(shown)).map((m) => <MonthRow key={m} month={m} data={data} now={now} moveMonths={[nextMonthKey(latest), ...months].sort()} />)}
     </div>
   )
 }

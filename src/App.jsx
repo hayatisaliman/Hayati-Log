@@ -134,7 +134,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar data={data} view={view} setView={setView} weekFocus={weekFocus} onWeekMonth={(m) => { setView('weekly'); setWeekFocus({ month: m, t: Date.now() }) }} month={month} setMonth={setMonth} now={now} status={status}
+      <Sidebar data={data} view={view} setView={setView} onWeekMonth={(m) => { setView('weekly'); setWeekFocus({ month: m, t: Date.now() }) }} month={month} setMonth={setMonth} now={now} status={status}
         onGoToDay={goToDay} openNoteId={noteOpen ? note.id : null} onOpenNote={openNote} searchRef={searchRef} />
 
       <main className="main">
@@ -157,7 +157,7 @@ export default function App() {
         {view === 'weekly' && <WeeklyPlan data={data} now={now} focus={weekFocus} />}
         {view === 'report' && <MonthReport data={data} month={month} months={months} setMonth={setMonth} onOpen={goToDay} now={now} />}
         {view === 'quarters' && <QuarterReport data={data} now={now} />}
-        {view === 'settings' && <Settings data={data} toast={toast} />}
+        {view === 'settings' && <Settings data={data} toast={toast} now={now} />}
       </main>
 
       {noteOpen && <NotePanel key={note.id} data={data} noteId={note.id} focusTitle={note.fresh} onClose={() => setNote(null)} width={Math.max(360, Math.min(noteWidth, window.innerWidth - 232 - 420))} setWidth={setNoteWidth} toast={toast} />}

@@ -206,11 +206,18 @@ export async function readBackup(name) {
   return JSON.parse(raw)
 }
 
-// exportData — Tauri writes to Downloads and returns the path; the browser downloads and returns the file name
-export async function exportData(json, name) {
-  if (isTauri) return invoke('export_data', { json, name })
+// exportData — Tauri asks where to save and returns the path (null if cancelled); the browser downloads and returns the file name
+export async function exportData(text, name) {
+  if (isTauri) {
+    const { save } = await import('@tauri-apps/plugin-dialog')
+    const ext = name.split('.').pop()
+    const path = await save({ defaultPath: name, filters: [{ name: ext === 'md' ? 'Markdown' : 'JSON', extensions: [ext] }] })
+    if (!path) return null
+    await invoke('write_export', { path, text })
+    return path
+  }
   const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
+  a.href = URL.createObjectURL(new Blob([text], { type: name.endsWith('.md') ? 'text/markdown' : 'application/json' }))
   a.download = name
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)

@@ -6,8 +6,9 @@ import { Chip } from './cells.jsx'
 import { DatePicker } from './DatePicker.jsx'
 import { DAY_NAMES, fmtClock, isoOf, longDate } from '../lib/time.js'
 import { update, replaceData, useStatus, findField, listBackups, readBackup, exportData, MOD } from '../lib/store.js'
+import { monthMarkdown, quarterMarkdown } from './reportMarkdown.js'
 
-export function Settings({ data, toast }) {
+export function Settings({ data, toast, now }) {
   const status = useStatus()
   const fileRef = useRef(null)
   const [newStart, setNewStart] = useState('')
@@ -26,12 +27,13 @@ export function Settings({ data, toast }) {
     } else update((d) => { d.categories = d.categories.filter((x) => x.id !== c.id) })
   }
 
-  const exportJson = async () => {
+  const saveFile = async (text, name) => {
     try {
-      const where = await exportData(JSON.stringify(data, null, 1), `hayati-log-${new Date().toISOString().slice(0, 10)}.json`)
-      toast(`Exported to ${where.replace(/^\/Users\/[^/]+/, '~')}`)
+      const where = await exportData(text, name)
+      if (where) toast(`Exported to ${where.replace(/^\/Users\/[^/]+/, '~')}`)
     } catch (e) { toast(`Export failed: ${e.message || e}`) }
   }
+  const exportJson = () => saveFile(JSON.stringify(data, null, 1), `hayati-log-${new Date().toISOString().slice(0, 10)}.json`)
 
   const importData = (next, label) => {
     if (!Array.isArray(next?.rows)) throw new Error('Not a Hayati Log file')
@@ -234,6 +236,7 @@ export function Settings({ data, toast }) {
         <div className="inline-form">
           <button className="btn" onClick={exportJson}>Export JSON</button>
         </div>
+        <ReportExport data={data} now={now} onSave={saveFile} />
       </section>
 
       <section className="card">
@@ -244,6 +247,46 @@ export function Settings({ data, toast }) {
         </BackupList>
       </section>
     </div>
+  )
+}
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+// ReportExport — pick a year, then a month or quarter, and save that report as Markdown
+function ReportExport({ data, now, onSave }) {
+  const thisYear = now.today.slice(0, 4)
+  const years = [...new Set([...data.rows.map((r) => r.date.slice(0, 4)), thisYear])].sort().reverse()
+  const [year, setYear] = useState(thisYear)
+  const has = new Set(data.rows.filter((r) => r.date.startsWith(year) && Object.keys(r.cells).length).map((r) => +r.date.slice(5, 7)))
+  const months = [...has].sort((a, b) => b - a)
+  const quarters = [4, 3, 2, 1].filter((q) => [1, 2, 3].some((i) => has.has((q - 1) * 3 + i)))
+  const first = months[0] ? `m${months[0]}` : quarters[0] ? `q${quarters[0]}` : ''
+  const [pick, setPick] = useState(first)
+  const value = (pick.startsWith('m') ? has.has(+pick.slice(1)) : quarters.includes(+pick.slice(1))) ? pick : first
+  const run = () => {
+    if (!value) return
+    const n = +value.slice(1)
+    if (value.startsWith('m')) {
+      const m = `${year}-${String(n).padStart(2, '0')}`
+      onSave(monthMarkdown(data, m, now), `hayati-log-${m}-monthly-report.md`)
+    } else onSave(quarterMarkdown(data, year, n, now), `hayati-log-${year}-q${n}-quarterly-report.md`)
+  }
+  return (
+    <>
+      <div className="mini-head">Markdown reports</div>
+      <p className="help">Save a Monthly or Quarterly Report as a Markdown file, the same numbers you see on the report pages.</p>
+      <div className="inline-form">
+        <select className="select" value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
+          {years.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select className="select" value={value} onChange={(e) => setPick(e.target.value)} aria-label="Report" disabled={!first}>
+          {!first && <option value="">No data this year</option>}
+          {months.length > 0 && <optgroup label="Monthly report">{months.map((m) => <option key={m} value={`m${m}`}>{MONTH_NAMES[m - 1]}</option>)}</optgroup>}
+          {quarters.length > 0 && <optgroup label="Quarterly report">{quarters.map((q) => <option key={q} value={`q${q}`}>Q{q} · {MONTH_NAMES[(q - 1) * 3].slice(0, 3)} – {MONTH_NAMES[(q - 1) * 3 + 2].slice(0, 3)}</option>)}</optgroup>}
+        </select>
+        <button className="btn" disabled={!value} onClick={run}>Export Markdown</button>
+      </div>
+    </>
   )
 }
 

@@ -5,19 +5,17 @@ import { catMeta } from './TimeBlocks.jsx'
 import { Chip } from './cells.jsx'
 import { useTip } from './Tip.jsx'
 import { ScrollTabs } from './ScrollTabs.jsx'
-import { avg, sleepOn } from '../lib/report.js'
+import { ProcrastinationCard } from './Procrastination.jsx'
+import { avg, sleepOn, clockWindow, inWindow } from '../lib/report.js'
 
 const textOf = (row, id) => cellText(row.cells[id]).trim()
-const openTodos = (row) => (Array.isArray(row.cells.pending) ? row.cells.pending.filter((t) => !t.done && !t.carried) : [])
 const short = (iso) => `${toDate(iso).getDate()} ${MONTHS[toDate(iso).getMonth()].slice(0, 3)}`
 const PHASE_ABBR = { 'Prolif.': 'PF', Ovulation: 'OV', Luteal: 'LT' }
 const phaseAbbr = (c) => (c.phase === 'Period' ? `P${c.day}` : c.phase === 'Late' ? `L${c.late}` : PHASE_ABBR[c.phase] || '')
-const SLEEP_COLOR = '#8e9cff'
 const PHASE_COLS = [['Prolif.', 'PF'], ['Ovulation', 'OV'], ['Luteal', 'LT'], ['Late', 'L'], ['Period', 'P']]
 
 export function MonthReport({ data, month, months, setMonth, onOpen, now }) {
   const [bind, tipEl] = useTip()
-  const [copied, setCopied] = useState(false)
   const rows = data.rows.filter((r) => r.date.startsWith(month)).sort((a, b) => a.date.localeCompare(b.date))
   const n = daysInMonth(month)
   const byDate = Object.fromEntries(rows.map((r) => [r.date, r]))
@@ -51,6 +49,8 @@ export function MonthReport({ data, month, months, setMonth, onOpen, now }) {
   const notesOf = (d) => ['friction', 'rest'].map((id) => field(id) && byDate[d] && textOf(byDate[d], id) ? { label: field(id).name, text: textOf(byDate[d], id) } : null).filter(Boolean)
   const extras = dates.map((d) => ({
     sleep: sleepOn(rowOf, d),
+    start: byDate[d]?.cells.start ?? null,
+    end: byDate[d]?.cells.end ?? null,
     work: groupMins(d, 'work'),
     rest: groupMins(d, 'rest'),
     notes: notesOf(d),
@@ -68,32 +68,12 @@ export function MonthReport({ data, month, months, setMonth, onOpen, now }) {
   const x = (m) => `${((m - lo) / span) * 100}%`
 
   const lists = ['learn'].map((id) => ({ f: field(id), items: rows.filter((r) => textOf(r, id)) })).filter((x) => x.f && x.items.length)
-  const lastPending = [...rows].reverse().find((r) => openTodos(r).length)
-
-  const markdown = () => {
-    const L = [`# ${monthLabel(month)} report`, '']
-    L.push(`- Days logged: ${logged.length}/${n}`)
-    if (starts.length) L.push(`- Average start: ${fmtClock(avg(starts))}`)
-    if (ends.length) L.push(`- Average end: ${fmtClock(avg(ends))}`)
-    for (const f of checkFields) L.push(`- ${f.name}: ${rows.filter((r) => r.cells[f.id]).length} days`)
-    if (tracked) L.push(`- Time tracked: ${fmtDuration(tracked)}`)
-    for (const e of cyc.events) L.push(`- Period started ${short(e.start)}${e.status ? ` — ${e.status}${e.diff ? ` (${e.diff > 0 ? '+' : ''}${e.diff}d, cycle ${e.length} days)` : ` (cycle ${e.length} days)`}` : ''}`)
-    if (cyc.lateNow) L.push(`- Period late by ${cyc.lateNow.late} days (D${cyc.lateNow.day})`)
-    L.push(`- Period days: ${cyc.periodDays}${cyc.ranges.length ? ` (${cyc.ranges.join(', ')})` : ''}`)
-    if (stateCounts.length) L.push(`- State: ${stateCounts.map((s) => `${s.o.name} ×${s.n}`).join(', ')}`)
-    for (const l of lists) {
-      L.push('', `## ${l.f.name}`)
-      for (const r of l.items) L.push(`- ${toDate(r.date).getDate()}: ${textOf(r, l.f.id).replace(/\n/g, ' · ')}`)
-    }
-    return L.join('\n')
-  }
 
   return (
     <div className="report">
       <div className="view-head">
         <h1 className="view-title">{monthLabel(month)}</h1>
         <ScrollTabs items={months} value={month} onPick={setMonth} label={(m) => monthLabel(m, true)} />
-        <button className="btn ghost" onClick={() => { navigator.clipboard.writeText(markdown()); setCopied(true); setTimeout(() => setCopied(false), 1500) }}>{copied ? 'Copied ✓' : 'Copy as Markdown'}</button>
       </div>
 
       <div className="tiles">
@@ -210,12 +190,7 @@ export function MonthReport({ data, month, months, setMonth, onOpen, now }) {
       </div>
 
       <div className="report-grid">
-        {lastPending && (
-          <section className="card">
-            <div className="card-head"><h3>Still Pending</h3><span className="section-meta">from {toDate(lastPending.date).getDate()} {DAY_SHORT[weekday(lastPending.date)]}</span></div>
-            <div className="todo-list">{openTodos(lastPending).map((t) => <div key={t.id} className="todo-line"><span className="todo-box" />{t.text}</div>)}</div>
-          </section>
-        )}
+        <ProcrastinationCard rows={rows} data={data} today={now.today} onOpen={onOpen} />
         {lists.map((l) => (
           <section key={l.f.id} className="card">
             <div className="card-head"><h3>{l.f.name}</h3><span className="section-meta">{l.items.length} entries</span></div>
@@ -324,6 +299,7 @@ function StateChart({ dates, byDate, options, extras, workName, workColor, restN
   )
 }
 
+// SleepChart — Start and End times per day on a 24h axis
 function SleepChart({ dates, extras, settings, today, bind }) {
   const ref = useRef(null)
   const [w, setW] = useState(480)
@@ -333,56 +309,50 @@ function SleepChart({ dates, extras, settings, today, bind }) {
     ro.observe(ref.current)
     return () => ro.disconnect()
   }, [])
-  const H = 200, L = 34, R = 12, T = 10, AX = 30, MAX = 12 * 60
+  const H = 240, L = 50, R = 12, T = 10, AX = 30
   const baseY = H - AX
+  const w0 = clockWindow(extras.flatMap((x) => [x.start, x.end]).filter((v) => v != null))
   const px = (i) => L + (i * (w - L - R)) / Math.max(1, dates.length - 1)
-  const py = (m) => T + (1 - Math.min(m, MAX) / MAX) * (baseY - T)
+  const py = (v) => T + ((inWindow(v, w0) - w0) / 1440) * (baseY - T)
   const tight = (w - L - R) / Math.max(1, dates.length - 1) < 20
   const cyc = dates.map((d) => (d <= today ? cycleInfo(d, settings) : null))
-  const pts = extras.map((x, i) => (x.sleep ? i : null)).filter((i) => i != null)
-  const segs = pts.slice(1).map((b, k) => [pts[k], b])
-  const all = pts.map((i) => extras[i].sleep.m)
-  const byPhase = PHASE_COLS.map(([phase, abbr]) => {
-    const v = pts.filter((i) => cyc[i]?.phase === phase).map((i) => extras[i].sleep.m)
-    return v.length ? { phase, abbr, avg: avg(v), color: COLORS[cyc.find((c) => c?.phase === phase).color] } : null
-  }).filter(Boolean)
+  const lines = [
+    { key: 'start', name: 'Start', color: COLORS.orange },
+    { key: 'end', name: 'End', color: COLORS.blue },
+  ].map((s) => {
+    const pts = extras.map((x, i) => (x[s.key] != null ? i : null)).filter((i) => i != null)
+    return { ...s, pts, segs: pts.slice(1).map((b, k) => [pts[k], b]), avg: avg(pts.map((i) => inWindow(extras[i][s.key], w0))) }
+  })
   const move = (e) => {
     const rx = e.clientX - e.currentTarget.getBoundingClientRect().left
     const i = Math.max(0, Math.min(dates.length - 1, Math.round(((rx - L) / (w - L - R)) * (dates.length - 1))))
-    const sl = extras[i].sleep
+    const x = extras[i]
     setHover(i)
-    bind(<><b>{short(dates[i])}</b>{cyc[i] && <div className="muted">D{cyc[i].day} · {cyc[i].phase}</div>}<div>{sl ? `${fmtDuration(sl.m)} · ${fmtClock(sl.from % 1440, { compact: true })} → ${fmtClock(sl.to, { compact: true })}` : 'No sleep data'}</div></>).onMouseMove(e)
+    bind(<><b>{short(dates[i])}</b>{cyc[i] && <div className="muted">D{cyc[i].day} · {cyc[i].phase}</div>}
+      {lines.map((s) => <div key={s.key} className="lc-tip-row"><span className="lc-dot" style={{ background: s.color }} />{s.name}<span className="grow" /><span className="num">{x[s.key] != null ? fmtClock(x[s.key], { compact: true }) : '—'}</span></div>)}
+      {x.sleep && <div className="lc-tip-row muted">Slept before<span className="grow" /><span className="num">{fmtDuration(x.sleep.m)}</span></div>}</>).onMouseMove(e)
   }
   const leave = () => { setHover(null); bind(null).onMouseLeave() }
   return (
     <div className="sleep-chart">
-      <div className="mini-head">Sleep pattern{all.length ? <span className="muted"> · avg <b className="num">{fmtDuration(Math.round(avg(all)))}</b> · {all.filter((m) => m < 6 * 60).length} nights under 6h</span> : null}</div>
+      <div className="mini-head">Sleep pattern{lines.some((s) => s.pts.length) ? <span className="muted">{lines.map((s) => s.avg != null && <span key={s.key}> · avg {s.name.toLowerCase()} <b className="num">{fmtClock(s.avg, { compact: true })}</b></span>)}</span> : null}</div>
       <div className="line-chart" ref={ref}>
         <svg width={w} height={H} onMouseMove={move} onMouseLeave={leave}>
-          {[0, 4, 8, 12].map((h) => (
-            <g key={h}>
-              <line className={h ? 'lc-grid' : 'lc-base'} x1={L} x2={w - R} y1={py(h * 60)} y2={py(h * 60)} />
-              <text className="lc-tick" x={L - 8} y={py(h * 60)} dy="0.35em" textAnchor="end">{h}h</text>
+          {[0, 1, 2, 3, 4, 5, 6].map((k) => (
+            <g key={k}>
+              <line className={k === 6 ? 'lc-base' : 'lc-grid'} x1={L} x2={w - R} y1={T + (k / 6) * (baseY - T)} y2={T + (k / 6) * (baseY - T)} />
+              <text className="lc-tick" x={L - 8} y={T + (k / 6) * (baseY - T)} dy="0.35em" textAnchor="end">{fmtClock(w0 + k * 240, { compact: true })}</text>
             </g>
           ))}
-          <line className="lc-ref" x1={L} x2={w - R} y1={py(7 * 60)} y2={py(7 * 60)} />
-          <text className="lc-ref-label" x={w - R} y={py(7 * 60) - 4} textAnchor="end">7h</text>
           {dates.map((d, i) => cyc[i] && <text key={d} className={`lc-tick lc-phase ${tight ? 'tight' : ''}`} style={{ fill: COLORS[cyc[i].color] }} x={px(i)} y={H - 10} textAnchor="middle">{phaseAbbr(cyc[i])}</text>)}
           {hover != null && <line className="lc-cross" x1={px(hover)} x2={px(hover)} y1={T} y2={baseY} />}
-          {segs.map(([a, b]) => <line key={a} className={`lc-line ${b - a > 1 ? 'gap' : ''}`} style={{ stroke: SLEEP_COLOR }} x1={px(a)} y1={py(extras[a].sleep.m)} x2={px(b)} y2={py(extras[b].sleep.m)} />)}
-          {pts.map((i) => <circle key={i} cx={px(i)} cy={py(extras[i].sleep.m)} r={hover === i ? 5.5 : 4} fill={extras[i].sleep.m < 6 * 60 ? COLORS.orange : SLEEP_COLOR} stroke="var(--surface)" strokeWidth="2" />)}
+          {lines.map((s) => s.segs.map(([a, b]) => <line key={s.key + a} className={`lc-line ${b - a > 1 ? 'gap' : ''}`} style={{ stroke: s.color }} x1={px(a)} y1={py(extras[a][s.key])} x2={px(b)} y2={py(extras[b][s.key])} />))}
+          {lines.map((s) => s.pts.map((i) => <circle key={s.key + i} cx={px(i)} cy={py(extras[i][s.key])} r={hover === i ? 5.5 : 4} fill={s.color} stroke="var(--surface)" strokeWidth="2" />))}
         </svg>
         <div className="legend lc-legend">
-          <span className="legend-item"><span className="lc-dot" style={{ background: SLEEP_COLOR }} />Sleep</span>
-          <span className="legend-item"><span className="lc-dot" style={{ background: COLORS.orange }} />Under 6h</span>
+          {lines.map((s) => <span key={s.key} className="legend-item"><span className="lc-dot" style={{ background: s.color }} />{s.name}</span>)}
         </div>
       </div>
-      {byPhase.length > 0 && (
-        <div className="sleep-phases">
-          <span className="muted">Avg by phase</span>
-          {byPhase.map((p) => <span key={p.phase} title={p.phase}><b style={{ color: p.color }}>{p.abbr}</b> <span className="num">{fmtDuration(Math.round(p.avg))}</span></span>)}
-        </div>
-      )}
     </div>
   )
 }
@@ -394,6 +364,7 @@ function PhaseTable({ dates, byDate, options, extras, workName, restName, settin
   const color = (phase) => COLORS[info.find((x) => x.c?.phase === phase).c.color]
   const has = (o, d) => (o.cell ? !!byDate[d]?.cells[o.id] : (byDate[d]?.cells.state || []).includes(o.id))
   const totalOf = (days, get) => { const t = days.reduce((a, x) => a + get(extras[x.i]), 0); return t ? fmtDuration(t) : '—' }
+  const sleepOf = (days) => { const v = avg(days.map((x) => extras[x.i].sleep?.m).filter((m) => m != null)); return v == null ? '—' : fmtDuration(Math.round(v)) }
   return (
     <div className="phase-table-wrap">
       <div className="mini-head">By cycle phase</div>
@@ -419,6 +390,10 @@ function PhaseTable({ dates, byDate, options, extras, workName, restName, settin
             <td>Total {restName.toLowerCase()}</td>
             {cols.map((c) => <td key={c.phase} className="num">{totalOf(c.days, (x) => x.rest)}</td>)}
           </tr>
+          <tr>
+            <td>Avg sleep</td>
+            {cols.map((c) => <td key={c.phase} className="num">{sleepOf(c.days)}</td>)}
+          </tr>
         </tbody>
       </table>
     </div>
@@ -440,7 +415,7 @@ function Bars({ items, bind }) {
   )
 }
 
-function cycleSummary(settings, dates, today) {
+export function cycleSummary(settings, dates, today) {
   const upto = dates.filter((d) => d <= today)
   const period = upto.filter((d) => cycleInfo(d, settings)?.phase === 'Period')
   const ranges = []
