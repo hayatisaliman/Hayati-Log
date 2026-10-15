@@ -959,7 +959,12 @@ select.select:disabled { opacity: 0.5; cursor: default; }
 .todo-kind { width: 18px; height: 18px; flex: none; display: inline-grid; place-items: center; border-radius: 4px; color: var(--text-3); }
 .todo-kind:hover { background: var(--hover-2); color: var(--text); }
 .todo-line.text-line .todo-text { color: var(--text); }
-.cell-editor .todo-row { height: 27px; padding: 0 4px; }
+.cell-editor .todo-row { min-height: 27px; padding: 3px 4px; align-items: flex-start; }
+.cell-editor .todo-row > * { margin-top: 1px; }
+.cell-editor .todo-row .todo-input { margin-top: 0; line-height: 20px; overflow-wrap: break-word; }
+.todo-scroll { overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; scrollbar-width: none; }
+.todo-scroll::-webkit-scrollbar { display: none; }
+.todo-scroll .todo-row.add { position: sticky; bottom: 0; z-index: 1; background: var(--bg); }
 .cell-editor .todo-input { font-size: 12.5px; padding: 0; }
 .cell-editor .todo-row .check { transform: scale(0.85); }
 .cell-editor .todo-carry, .cell-editor .todo-del { width: 18px; height: 18px; }
@@ -1118,3 +1123,9 @@ html.bar-root, html.bar-root body, html.bar-root #root { height: 100%; overflow:
 .nav-year { cursor: pointer; padding-right: 4px; }
 .nav-year .row-more { opacity: 0; margin-left: auto; font-weight: 400; }
 .nav-year:hover .row-more { opacity: 1; }
+
+.todo-actions { display: contents; }
+.cell-editor .todo-row { position: relative; }
+.cell-editor .todo-actions { position: absolute; right: 2px; top: 3px; display: flex; gap: 0; padding: 0 2px; border-radius: 5px; background: var(--raised); box-shadow: 0 0 0 1px var(--line-2); opacity: 0; pointer-events: none; }
+.cell-editor .todo-row:hover .todo-actions { opacity: 1; pointer-events: auto; }
+.cell-editor .todo-actions > * { opacity: 1; margin-top: 0; }

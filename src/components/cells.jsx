@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { COLORS, COLOR_NAMES, computedValue, newRow, todoId, cycleInfo, cycleLen, setCycleDay, togglePeriodStart, togglePeriodEnd, wakeMinute, todoAge } from '../lib/schema.js'
 import { addDays, fmtClock, fmtDuration, isNight, normalizeClock, parseClock, toDate, weekOfMonth, DAY_SHORT } from '../lib/time.js'
 import { update, findRow, findField, useData as useDataSnapshot } from '../lib/store.js'
 import { RichInput, RichText } from './FormatBar.jsx'
-import { Popover } from './Popover.jsx'
+import { InlineHost, Popover } from './Popover.jsx'
 import { ColorSwatch } from './ColorPicker.jsx'
 import { Icon } from './icons.jsx'
 import { Calendar } from './DatePicker.jsx'
@@ -194,10 +194,15 @@ function TodoList({ rowId, date, fieldId, autoFocus, mixed }) {
   )
 }
 
+// TodoEditor — in a table cell it keeps the cell's height and scrolls instead of spilling over
 function TodoEditor({ anchor, row, field, onClose }) {
+  const inline = useContext(InlineHost)
+  const [maxHeight] = useState(() => (inline ? Math.max((anchor?.offsetHeight || 0) - 8, 64) : undefined))
   return (
     <Popover anchor={anchor} cover width={340} className="cell-editor todo-editor" onClose={onClose}>
-      <TodoList rowId={row.id} date={row.date} fieldId={field.id} autoFocus mixed={field.type === 'mixed'} />
+      <div className={inline ? 'todo-scroll' : ''} style={{ maxHeight }}>
+        <TodoList rowId={row.id} date={row.date} fieldId={field.id} autoFocus mixed={field.type === 'mixed'} />
+      </div>
     </Popover>
   )
 }
@@ -227,6 +232,7 @@ function TodoRow({ t, rowId, fieldId, onEnter, drag, age }) {
         }}
       />
       {age != null && <span className="todo-age num">{age}d</span>}
+      <span className="todo-actions">
       {!isText && fieldId !== 'pending' && (
         <button className={`todo-carry todo-send ${t.sent ? 'on' : ''}`} title={t.sent ? "Copied to next day's Pending · click to undo" : "Copy to next day's Pending"} onClick={() => sendToPending(rowId, fieldId, t.id)}>
           <Icon name="arrow-right" size={14} />
@@ -238,6 +244,7 @@ function TodoRow({ t, rowId, fieldId, onEnter, drag, age }) {
         </button>
       )}
       <button className="todo-del" title="Delete" onClick={remove}>×</button>
+      </span>
     </div>
   )
 }
