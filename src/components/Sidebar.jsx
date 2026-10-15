@@ -36,6 +36,8 @@ const nextMonth = (key) => {
 
 export function Sidebar({ data, view, setView, onWeekMonth, month, setMonth, now, status, onGoToDay, openNoteId, onOpenNote, searchRef }) {
   const [closedYears, setClosedYears] = usePref('hr.closedYears', [])
+  const [allMonthYears, setAllMonthYears] = usePref('hr.allMonthYears', [])
+  const [yearMenu, setYearMenu] = useState(null)
 
   const months = useMemo(() => {
     const set = new Set([...data.rows.map((r) => monthKey(r.date)), ...(data.months || []), monthKey(now.today)])
@@ -107,13 +109,17 @@ export function Sidebar({ data, view, setView, onWeekMonth, month, setMonth, now
         <div className="nav-sub">
           {years.map(([y, ms]) => {
             const closed = closedYears.includes(y)
+            const all = allMonthYears.includes(y)
+            const latest = [...ms].sort().slice(-2)
+            const shown = all ? ms : ms.filter((m) => latest.includes(m) || (view === 'table' && month === m))
             return (
               <div key={y} className="year">
-                <button className="nav-year" onClick={() => setClosedYears(closed ? closedYears.filter((x) => x !== y) : [...closedYears, y])}>
+                <div role="button" className="nav-year" onClick={() => setClosedYears(closed ? closedYears.filter((x) => x !== y) : [...closedYears, y])}>
                   <span className={`caret ${closed ? '' : 'open'}`}><Icon name="chevron" size={11} /></span>{y}
-                </button>
-                {!closed && ms.map((m) => (
-                  <button key={m} className={`nav-month ${view === 'table' && month === m ? 'on' : ''}`} onClick={() => { setMonth(m); setView('table') }}>
+                  {ms.length > latest.length && <button className="row-more" onClick={(e) => { e.stopPropagation(); setYearMenu({ y, el: e.currentTarget }) }}>⋯</button>}
+                </div>
+                {!closed && shown.map((m) => (
+                  <button className={`nav-month ${view === 'table' && month === m ? 'on' : ''}`} onClick={() => { setMonth(m); setView('table') }}>
                     <span className="nav-month-name">
                       {MONTHS[+m.slice(5) - 1]}
                       {removable(m) && (
@@ -128,6 +134,19 @@ export function Sidebar({ data, view, setView, onWeekMonth, month, setMonth, now
               </div>
             )
           })}
+          {yearMenu && (() => {
+            const all = allMonthYears.includes(yearMenu.y)
+            return (
+              <Popover anchor={yearMenu.el} onClose={() => setYearMenu(null)} width={180}>
+                <Menu onPick={() => setYearMenu(null)} items={[
+                  { icon: 'calendar', label: all ? 'View recent months' : 'View all months', run: () => {
+                    setAllMonthYears(all ? allMonthYears.filter((x) => x !== yearMenu.y) : [...allMonthYears, yearMenu.y])
+                    setClosedYears(closedYears.filter((x) => x !== yearMenu.y))
+                  } },
+                ]} />
+              </Popover>
+            )
+          })()}
         </div>
         <div role="button" className={`nav ${view === 'weekly' ? 'on' : ''}`} onClick={() => setView('weekly')}>
           <span className="nav-ico"><Icon name="layers" /></span>Weekly Plan

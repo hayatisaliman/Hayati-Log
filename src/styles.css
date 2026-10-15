@@ -1114,3 +1114,7 @@ html.bar-root, html.bar-root body, html.bar-root #root { height: 100%; overflow:
 .tbar-item:hover { background: rgba(255, 255, 255, 0.1); }
 .tbar.light .tbar-item:hover { background: rgba(0, 0, 0, 0.08); }
 .tbar .field-icon { flex: none; }
+
+.nav-year { cursor: pointer; padding-right: 4px; }
+.nav-year .row-more { opacity: 0; margin-left: auto; font-weight: 400; }
+.nav-year:hover .row-more { opacity: 1; }
