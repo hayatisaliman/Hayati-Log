@@ -28,13 +28,13 @@ function editBlocks(rowId, fn) {
   })
 }
 
-export function startBlock(rowId, catId, nowMin) {
+export function startBlock(rowId, catId, nowMin, text = '') {
   let id = bid()
   editBlocks(rowId, (r, blocks) => {
     const open = blocks.find((b) => b.end == null && nowMin - b.start < 1)
-    if (open) { open.cats = catId ? [catId] : []; id = open.id; return }
+    if (open) { open.cats = catId ? [catId] : []; open.text = text; id = open.id; return }
     for (const b of blocks) { if (b.end == null && b.start <= nowMin) b.end = nowMin; delete b.paused; delete b.pausedSec }
-    blocks.push({ id, start: nowMin, startedAt: Date.now(), end: null, cats: catId ? [catId] : [], text: '', plan: null })
+    blocks.push({ id, start: nowMin, startedAt: Date.now(), end: null, cats: catId ? [catId] : [], text, plan: null })
     if (r.cells.start == null) r.cells.start = nowMin
   })
   return id

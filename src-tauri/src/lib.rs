@@ -1,11 +1,13 @@
 use std::{collections::HashSet, fs, path::PathBuf, time::{Duration, SystemTime}};
 use tauri::Manager;
 
+mod menubar;
+
 const KEEP_BACKUPS: usize = 14;
 const MEDIA_GRACE: Duration = Duration::from_secs(24 * 60 * 60);
 const OLD_DATA_DIR: &str = "com.hayati.report";
 
-fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn data_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let old = dir.with_file_name(OLD_DATA_DIR);
     if !dir.exists() && old.is_dir() {
@@ -166,7 +168,30 @@ fn save_media(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![load_data, save_data, data_path, list_backups, read_backup, media_dir, save_media, write_export])
-        .run(tauri::generate_context!())
-        .expect("error while running Hayati Log");
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
+        .invoke_handler(tauri::generate_handler![
+            load_data, save_data, data_path, list_backups, read_backup, media_dir, save_media, write_export,
+            menubar::tray_icons, menubar::tray_watch, menubar::popup_info, menubar::popup_ready, menubar::popup_result,
+            menubar::note_saved, menubar::get_launch_at_login, menubar::set_launch_at_login
+        ])
+        .setup(|app| Ok(menubar::setup(app.handle())?))
+        .on_menu_event(menubar::on_menu)
+        .on_window_event(|w, ev| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = ev {
+                if w.label() == "main" {
+                    api.prevent_close();
+                    let _ = w.hide();
+                }
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building Hayati Log")
+        .run(|app, ev| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = ev {
+                menubar::show_main(app);
+            }
+            let _ = (app, ev);
+        });
 }

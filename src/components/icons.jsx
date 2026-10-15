@@ -149,9 +149,9 @@ const TYPE_ICON = {
   checkbox: 'checkbox', todo: 'checkbox', mixed: 'list', time: 'clock', weekday: 'sigma', week: 'sigma', cycle: 'drop', tracked: 'stopwatch',
 }
 
-export function Icon({ name, size = 16 }) {
+export function Icon({ name, size = 16, weight = 1.35 }) {
   return (
-    <svg className="field-icon" viewBox="0 0 16 16" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg className="field-icon" viewBox="0 0 16 16" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {ICONS[name] || ICONS.text}
     </svg>
   )

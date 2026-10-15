@@ -20,14 +20,25 @@
         "titleBarStyle": "Overlay",
         "dragDropEnabled": false,
         "hiddenTitle": true,
-        "trafficLightPosition": { "x": 16, "y": 22 },
-        "backgroundColor": "#000000"
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 22
+        },
+        "backgroundColor": "#000000",
+        "label": "main",
+        "visible": false
       }
     ],
     "security": {
       "csp": null,
-      "assetProtocol": { "enable": true, "scope": ["$APPDATA/media/**"] }
-    }
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPDATA/media/**"
+        ]
+      }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,

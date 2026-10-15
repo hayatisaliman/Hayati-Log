@@ -8,6 +8,8 @@ import { DAY_NAMES, fmtClock, isoOf, longDate } from '../lib/time.js'
 import { update, replaceData, useStatus, findField, listBackups, readBackup, exportData, MOD } from '../lib/store.js'
 import { monthMarkdown, quarterMarkdown } from './reportMarkdown.js'
 
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+
 export function Settings({ data, toast, now }) {
   const status = useStatus()
   const fileRef = useRef(null)
@@ -229,6 +231,8 @@ export function Settings({ data, toast, now }) {
         ))}
       </section>
 
+      <MenuBarCard />
+
       <section className="card">
         <div className="card-head"><h3>Export Data</h3><span className="section-meta">Auto backup daily · last 14 kept</span></div>
         <p className="help">Everything lives in one plain JSON file on this Mac. The app automatically backs it up into <code>backups/</code> once a day and keeps the last 14 days.</p>
@@ -352,6 +356,23 @@ function RoutineWhen({ routine: r, set }) {
         </button>
       ))}
     </span>
+  )
+}
+
+function MenuBarCard() {
+  const [login, setLogin] = useState(null)
+  useEffect(() => { if (isTauri) import('@tauri-apps/api/core').then(({ invoke }) => invoke('get_launch_at_login').then(setLogin)) }, [])
+  if (login == null) return null
+  const change = (on) => { setLogin(on); import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_launch_at_login', { on })) }
+  return (
+    <section className="card">
+      <div className="card-head"><h3>Menu Bar</h3><span className="section-meta">Note, stopwatch and timer</span></div>
+      <p className="help">The menu bar stopwatch starts, pauses and stops today's Time Blocks. Closing this window keeps the menu bar running. Quit from any menu bar item.</p>
+      <div className="inline-form">
+        <Toggle on={login} onChange={change} />
+        <span className="set-label">Open at login</span>
+      </div>
+    </section>
   )
 }
 

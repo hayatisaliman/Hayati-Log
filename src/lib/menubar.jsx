@@ -1,0 +1,72 @@
+import { useEffect, useRef } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { Icon } from '../components/icons.jsx'
+import { catMeta, elapsedSec, pauseRunning, resumePaused, startBlock, stopRunning } from '../components/TimeBlocks.jsx'
+import { getData } from './store.js'
+import { rolloverMinute } from './schema.js'
+import { logicalToday, nowMinutes } from './time.js'
+
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+const TRAY_ICONS = ['hourglass', 'stopwatch', 'pause', 'pen-line']
+
+// rasterize — pool icon → RGBA for a macOS template image
+async function rasterize(name, px = 48) {
+  const svg = renderToStaticMarkup(<Icon name={name} size={px} weight={1.5} />).replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg" color="#000"')
+  const img = new Image()
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+  await img.decode()
+  const c = document.createElement('canvas')
+  c.width = c.height = px
+  const ctx = c.getContext('2d')
+  ctx.drawImage(img, 0, 0, px, px)
+  return { name, w: px, h: px, rgba: Array.from(ctx.getImageData(0, 0, px, px).data) }
+}
+
+const clip = (t, n) => (t.length > n ? `${t.slice(0, n - 1)}…` : t)
+
+function watchOf(d) {
+  const day = logicalToday(rolloverMinute(d))
+  const row = d.rows.find((r) => r.date === day)
+  const b = row?.blocks.find((x) => x.end == null) || row?.blocks.find((x) => x.paused)
+  if (!b) return null
+  const label = b.cats.length ? b.cats.map((c) => { const m = catMeta(d, c); return `${m.emoji} ${m.name}`.trim() }).join(' · ') : b.text || 'Untitled block'
+  return { label: clip(label, 28), elapsed_sec: elapsedSec(row.date, b), at_ms: Date.now(), paused: !!b.paused }
+}
+
+const groupsOf = (d) => d.groups
+  .map((g) => ({ name: g.name, cats: d.categories.filter((c) => c.group === g.id && !c.archived).map((c) => ({ id: c.id, label: `${c.emoji} ${c.name}`.trim() })) }))
+  .filter((g) => g.cats.length)
+
+// useMenubar — main window feeds the menu bar stopwatch and runs its actions on Time Blocks
+export function useMenubar(data, onView) {
+  const viewRef = useRef(onView)
+  viewRef.current = onView
+
+  useEffect(() => {
+    if (!isTauri) return
+    let off
+    Promise.all([import('@tauri-apps/api/core'), import('@tauri-apps/api/event')]).then(async ([{ invoke }, { listen }]) => {
+      off = await listen('tray-action', ({ payload: a }) => {
+        const d = getData()
+        const day = logicalToday(rolloverMinute(d))
+        const row = d.rows.find((r) => r.date === day)
+        const min = nowMinutes(day)
+        if (a.type === 'start') startBlock(row?.id || `r-${day}`, a.cat || null, min, a.text || '')
+        else if (a.type === 'view') viewRef.current(a.view)
+        else if (row && a.type === 'pause') pauseRunning(row.id, min)
+        else if (row && a.type === 'resume') resumePaused(row.id, min)
+        else if (row && a.type === 'stop') stopRunning(row.id, min)
+      })
+      invoke('tray_icons', { icons: await Promise.all(TRAY_ICONS.map((n) => rasterize(n))) })
+    })
+    return () => off?.()
+  }, [])
+
+  useEffect(() => {
+    if (!isTauri) return
+    const push = () => import('@tauri-apps/api/core').then(({ invoke }) => { const d = getData(); invoke('tray_watch', { watch: watchOf(d), groups: groupsOf(d) }) })
+    push()
+    const t = setInterval(push, 30000)
+    return () => clearInterval(t)
+  }, [data])
+}

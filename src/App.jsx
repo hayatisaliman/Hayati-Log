@@ -15,6 +15,7 @@ import { Settings } from './components/Settings.jsx'
 import { Popover } from './components/Popover.jsx'
 import { QuickEntry } from './components/QuickEntry.jsx'
 import { FormatBar } from './components/FormatBar.jsx'
+import { useMenubar } from './lib/menubar.jsx'
 
 function useNow(boundary) {
   const [ts, setTs] = useState(() => Date.now())
@@ -86,6 +87,8 @@ export default function App() {
   }
 
   const openBlocks = (date) => { if (!date) return; setBlocksDate(date); setView('blocks') }
+
+  useMenubar(data, (v) => (v === 'blocks' ? openBlocks(now.today) : setView(v)))
 
   const openNote = (id, fresh) => setNote(id ? { id, fresh: !!fresh } : null)
 
