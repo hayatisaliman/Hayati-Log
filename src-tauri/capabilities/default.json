@@ -4,7 +4,8 @@
   "description": "Main window capability",
   "windows": [
     "main",
-    "popup"
+    "popup",
+    "bar"
   ],
   "permissions": [
     "core:default",

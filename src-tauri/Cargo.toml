@@ -23,11 +23,15 @@ serde_json = "1"
 tauri-plugin-dialog = "=2.8.1"
 tauri-plugin-autostart = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-single-instance = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSWindow", "NSPanel", "NSGraphics", "NSAttributedString", "NSColor", "NSFont", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSView"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSProcessInfo", "NSString", "NSAttributedString", "NSDictionary"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]
 strip = true

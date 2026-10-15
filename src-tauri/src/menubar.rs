@@ -75,6 +75,9 @@ pub struct State {
     colors: Colors,
     icons: HashMap<String, (Vec<u8>, u32, u32)>,
     firing: bool,
+    ready: bool,
+    bar: Titles,
+    bar_width: f64,
     popup: Option<Value>,
     shown: bool,
 }
@@ -252,11 +255,16 @@ fn make_tray<R: Runtime>(app: &AppHandle<R>, id: &str, icon: Option<Image<'stati
 pub fn tray_icons<R: Runtime>(app: AppHandle<R>, icons: Vec<TrayImage>) -> Result<(), String> {
     let (timer, watch, note) = {
         let mut st = state(&app);
+        st.ready = true;
         for i in icons {
             st.icons.insert(i.name, (i.rgba, i.w, i.h));
         }
         (image(&st, "hourglass"), image(&st, "stopwatch"), if cfg!(target_os = "macos") { None } else { image(&st, "pen-line") })
     };
+    if cfg!(windows) {
+        tick(&app, &mut Titles::default());
+        return Ok(());
+    }
     for (id, icon) in [("timer", timer), ("watch", watch), ("note", note)] {
         match app.tray_by_id(id) {
             Some(t) => {
@@ -289,14 +297,15 @@ pub fn tray_watch<R: Runtime>(app: AppHandle<R>, watch: Option<Watch>, groups: V
     }
 }
 
-#[derive(Default)]
-struct Titles {
+#[derive(Default, Clone, PartialEq, Serialize)]
+pub struct Titles {
     timer: String,
     timer_color: String,
     watch: String,
     watch_color: String,
     watch_icon: String,
     note: String,
+    light: bool,
 }
 
 fn tick<R: Runtime>(app: &AppHandle<R>, last: &mut Titles) {
@@ -321,7 +330,12 @@ fn tick<R: Runtime>(app: &AppHandle<R>, last: &mut Titles) {
             None => (String::new(), "stopwatch"),
         };
         let watch_color = if st.watch.as_ref().is_some_and(|w| !w.paused) { st.colors.green.clone() } else { String::new() };
-        let next = Titles { timer, timer_color: st.colors.orange.clone(), watch, watch_color, watch_icon: watch_icon.into(), note: clip(&st.saved.note, 30) };
+        #[cfg(windows)]
+        let light = crate::taskbar::light_taskbar();
+        #[cfg(not(windows))]
+        let light = false;
+        let next = Titles { timer, timer_color: st.colors.orange.clone(), watch, watch_color, watch_icon: watch_icon.into(), note: clip(&st.saved.note, 30), light };
+        st.bar = next.clone();
         let icon = if next.watch_icon != last.watch_icon { image(&st, watch_icon) } else { None };
         (next, icon, fire)
     };
@@ -334,6 +348,8 @@ fn tick<R: Runtime>(app: &AppHandle<R>, last: &mut Titles) {
             if let (Some(text), Some(rgb)) = (text, hex(color)) {
                 paint_title(&tray, text, rgb);
             }
+            #[cfg(not(target_os = "macos"))]
+            let _ = color;
         }
     };
     if (&next.timer, &next.timer_color) != (&last.timer, &last.timer_color) { title("timer", &next.timer, &next.timer_color) }
@@ -348,6 +364,14 @@ fn tick<R: Runtime>(app: &AppHandle<R>, last: &mut Titles) {
         let _ = tray.set_icon(Some(i));
         let _ = tray.set_icon_as_template(true);
     }
+    #[cfg(windows)]
+    {
+        if next != *last {
+            let _ = app.emit_to("bar", "bar", &next);
+        }
+        let width = state(app).bar_width;
+        crate::taskbar::place(app, width);
+    }
     *last = next;
     if let Some(dur) = fire {
         refresh_menus(app);
@@ -355,6 +379,7 @@ fn tick<R: Runtime>(app: &AppHandle<R>, last: &mut Titles) {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn hex(color: &str) -> Option<(f64, f64, f64)> {
     let h = color.trim().strip_prefix('#')?;
     if h.len() != 6 {
@@ -395,6 +420,8 @@ fn fire_timer<R: Runtime>(app: &AppHandle<R>, dur: u64) {
         let _ = Command::new("caffeinate").args(["-u", "-t", "5"]).spawn();
         let _ = Command::new("afplay").arg("/System/Library/Sounds/Glass.aiff").spawn();
     }
+    #[cfg(windows)]
+    crate::taskbar::alarm();
     let _ = app.notification().builder().title("Timer").body(&msg).show();
     open_popup(app, json!({ "kind": "timer-done", "title": "Time's up", "message": format!("{msg} How is it going?") }));
 }
@@ -550,6 +577,34 @@ fn close_popup<R: Runtime>(app: &AppHandle<R>) {
 }
 
 #[tauri::command]
+pub fn bar_state<R: Runtime>(app: AppHandle<R>) -> Titles {
+    state(&app).bar.clone()
+}
+
+#[tauri::command]
+pub fn bar_size<R: Runtime>(app: AppHandle<R>, width: f64) {
+    state(&app).bar_width = width;
+    #[cfg(windows)]
+    crate::taskbar::place(&app, width);
+}
+
+// bar_menu — Windows taskbar widget opens the same menus as the macOS menu bar items
+#[tauri::command]
+pub fn bar_menu<R: Runtime>(app: AppHandle<R>, window: tauri::Window<R>, id: String) -> Result<(), String> {
+    let (saved, watch, groups) = {
+        let st = state(&app);
+        (st.saved.clone(), st.watch.clone(), st.groups.clone())
+    };
+    let menu = match id.as_str() {
+        "timer" => timer_menu(&app, &saved),
+        "watch" => watch_menu(&app, &watch, &groups),
+        _ => note_menu(&app, &saved),
+    }
+    .map_err(|e| e.to_string())?;
+    window.popup_menu(&menu).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn popup_info<R: Runtime>(app: AppHandle<R>) -> Option<Value> {
     state(&app).popup.clone()
 }
@@ -658,6 +713,8 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     #[cfg(target_os = "macos")]
     keep_awake();
+    #[cfg(windows)]
+    crate::taskbar::create(app)?;
 
     if !std::env::args().any(|a| a == "--hidden") {
         show_main(app);
@@ -668,7 +725,7 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         let mut last = Titles::default();
         loop {
             std::thread::sleep(Duration::from_millis(1000 - now_ms() % 1000 + 5));
-            if handle.tray_by_id("timer").is_some() {
+            if state(&handle).ready {
                 tick(&handle, &mut last);
             }
         }

@@ -2,6 +2,8 @@ use std::{collections::HashSet, fs, path::PathBuf, time::{Duration, SystemTime}}
 use tauri::Manager;
 
 mod menubar;
+#[cfg(windows)]
+mod taskbar;
 
 const KEEP_BACKUPS: usize = 14;
 const MEDIA_GRACE: Duration = Duration::from_secs(24 * 60 * 60);
@@ -167,13 +169,14 @@ fn save_media(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| menubar::show_main(app)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
         .invoke_handler(tauri::generate_handler![
             load_data, save_data, data_path, list_backups, read_backup, media_dir, save_media, write_export,
             menubar::tray_icons, menubar::tray_watch, menubar::popup_info, menubar::popup_ready, menubar::popup_result,
-            menubar::note_saved, menubar::get_launch_at_login, menubar::set_launch_at_login
+            menubar::note_saved, menubar::bar_state, menubar::bar_size, menubar::bar_menu, menubar::get_launch_at_login, menubar::set_launch_at_login
         ])
         .setup(|app| Ok(menubar::setup(app.handle())?))
         .on_menu_event(menubar::on_menu)

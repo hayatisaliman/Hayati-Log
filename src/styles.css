@@ -1105,3 +1105,12 @@ html.popup-root, html.popup-root body, html.popup-root #root { background: trans
 .popup-saved-text { flex: 1; text-align: left; padding: 5px 8px; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .popup-saved-row .chip-x { opacity: 0; display: grid; place-items: center; width: 22px; height: 22px; }
 .popup-saved-row:hover .chip-x { opacity: 0.6; }
+
+/* windows taskbar widget */
+html.bar-root, html.bar-root body, html.bar-root #root { height: 100%; overflow: hidden; }
+.tbar { display: inline-flex; align-items: stretch; height: 100%; color: #fff; font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif; font-size: 12px; white-space: nowrap; user-select: none; }
+.tbar.light { color: #000; }
+.tbar-item { display: flex; align-items: center; gap: 5px; padding: 0 8px; border-radius: 4px; margin: 4px 0; }
+.tbar-item:hover { background: rgba(255, 255, 255, 0.1); }
+.tbar.light .tbar-item:hover { background: rgba(0, 0, 0, 0.08); }
+.tbar .field-icon { flex: none; }
