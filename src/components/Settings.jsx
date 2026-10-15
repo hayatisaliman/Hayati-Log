@@ -5,7 +5,7 @@ import { ColorSwatch } from './ColorPicker.jsx'
 import { Chip } from './cells.jsx'
 import { DatePicker } from './DatePicker.jsx'
 import { DAY_NAMES, fmtClock, isoOf, longDate } from '../lib/time.js'
-import { update, replaceData, useStatus, findField, listBackups, readBackup, MOD } from '../lib/store.js'
+import { update, replaceData, useStatus, findField, listBackups, readBackup, exportData, MOD } from '../lib/store.js'
 
 export function Settings({ data, toast }) {
   const status = useStatus()
@@ -26,23 +26,21 @@ export function Settings({ data, toast }) {
     } else update((d) => { d.categories = d.categories.filter((x) => x.id !== c.id) })
   }
 
-  const exportJson = () => {
-    const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `hayati-log-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(a.href)
+  const exportJson = async () => {
+    try {
+      const where = await exportData(JSON.stringify(data, null, 1), `hayati-log-${new Date().toISOString().slice(0, 10)}.json`)
+      toast(`Exported to ${where.replace(/^\/Users\/[^/]+/, '~')}`)
+    } catch (e) { toast(`Export failed: ${e.message || e}`) }
   }
 
-  const importData = (next) => {
+  const importData = (next, label) => {
     if (!Array.isArray(next?.rows)) throw new Error('Not a Hayati Log file')
     replaceData(next)
-    toast(`Imported ${next.rows.length} days · ${MOD}Z to undo`)
+    toast(`${label ? `Restored ${label}` : 'Imported'} · ${next.rows.length} days · ${MOD}Z to undo`)
   }
 
   const importJson = async (file) => {
-    try { importData(JSON.parse(await file.text())) } catch (e) { toast(String(e.message || e)) }
+    try { importData(JSON.parse(await file.text())) } catch (e) { toast(`Import failed: ${e.message || e}`) }
   }
 
   return (
@@ -230,8 +228,8 @@ export function Settings({ data, toast }) {
       </section>
 
       <section className="card">
-        <div className="card-head"><h3>Export Data</h3><span className="section-meta">Auto backup daily · last 30 kept</span></div>
-        <p className="help">Everything lives in one plain JSON file on this Mac. The app automatically backs it up into <code>backups/</code> once a day and keeps the last 30 days.</p>
+        <div className="card-head"><h3>Export Data</h3><span className="section-meta">Auto backup daily · last 14 kept</span></div>
+        <p className="help">Everything lives in one plain JSON file on this Mac. The app automatically backs it up into <code>backups/</code> once a day and keeps the last 14 days.</p>
         <code className="path">{status.file || '—'}</code>
         <div className="inline-form">
           <button className="btn" onClick={exportJson}>Export JSON</button>
@@ -240,7 +238,7 @@ export function Settings({ data, toast }) {
 
       <section className="card">
         <div className="card-head"><h3>Restore Data</h3><span className="section-meta">Replaces everything · {MOD}Z to undo</span></div>
-        <BackupList onImport={(name) => readBackup(name).then(importData).catch((e) => toast(String(e.message || e)))}>
+        <BackupList onImport={(name) => readBackup(name).then((d) => importData(d, name)).catch((e) => toast(`Restore failed: ${e.message || e}`))}>
           <button className="btn" onClick={() => fileRef.current.click()}>Import From File</button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = '' }} />
         </BackupList>

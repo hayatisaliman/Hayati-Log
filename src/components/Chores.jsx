@@ -5,13 +5,23 @@ import { Popover, Menu } from './Popover.jsx'
 import { Icon } from './icons.jsx'
 
 const seed = () => []
+let freshId = null
+
+export const choresTitle = (data) => data.settings.choresTitle || 'Chores, DIY'
+
+export function addChoreSection() {
+  const id = `c-${Date.now().toString(36)}`
+  update((d) => { d.chores = [...(d.chores || []), { id, title: '', blocks: [{ type: 'checkListItem' }] }] })
+  freshId = id
+}
 
 export function Chores({ data }) {
   const sections = data.chores
   const [drag, setDrag] = useState(null)
   const [drop, setDrop] = useState(null)
-  const [fresh, setFresh] = useState(null)
+  const fresh = freshId
   useEffect(() => { if (!data.chores) update((d) => { d.chores = seed() }, { history: false }) }, [])
+  useEffect(() => { freshId = null })
   if (!sections) return null
 
   const endDrag = () => { setDrag(null); setDrop(null) }
@@ -25,18 +35,12 @@ export function Chores({ data }) {
     })
     endDrag()
   }
-  const addSection = () => {
-    const id = `c-${Date.now().toString(36)}`
-    update((d) => { d.chores = [...(d.chores || []), { id, title: '', blocks: [{ type: 'checkListItem' }] }] })
-    setFresh(id)
-  }
-
   return (
     <div className="chores">
       <div className="view-head">
-        <h1 className="view-title">Chores, DIY</h1>
+        <h1 className="view-title">{choresTitle(data)}</h1>
         <div className="grow" />
-        <button className="btn primary" onClick={addSection}>+ Section</button>
+        <button className="btn primary" onClick={addChoreSection}>+ Section</button>
       </div>
       <div className="chores-grid">
         {sections.map((s) => (
@@ -57,6 +61,7 @@ export function Chores({ data }) {
 
 function ChoreCard({ section, autoFocus, dragging, dropPos, onDragStart, onDragEnd, onDragOver, onDrop }) {
   const [menu, setMenu] = useState(null)
+  const titleRef = useRef(null)
   const timer = useRef(null)
   const pending = useRef(null)
   const initial = useRef(section.blocks?.length ? section.blocks : undefined).current
@@ -69,6 +74,11 @@ function ChoreCard({ section, autoFocus, dragging, dropPos, onDragStart, onDragE
     update((d) => { const c = (d.chores || []).find((x) => x.id === section.id); if (c) c.blocks = blocks }, { fromEditor: true })
   }
   useEffect(() => flush, [])
+  useEffect(() => {
+    if (!autoFocus) return
+    const raf = requestAnimationFrame(() => { titleRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }); titleRef.current?.focus({ preventScroll: true }) })
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   return (
     <section className={`chore-card ${dragging ? 'dragging' : ''} ${dropPos ? `drop-${dropPos}` : ''}`} onDragOver={onDragOver} onDrop={onDrop}>
@@ -77,8 +87,8 @@ function ChoreCard({ section, autoFocus, dragging, dropPos, onDragStart, onDragE
         <input
           className="chore-title"
           placeholder="Untitled"
+          ref={titleRef}
           defaultValue={section.title}
-          autoFocus={autoFocus}
           onBlur={(e) => { if (e.target.value !== section.title) patch((c) => { c.title = e.target.value }) }}
           onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
         />

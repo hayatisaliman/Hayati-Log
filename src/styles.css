@@ -78,6 +78,10 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
   position: relative; z-index: 1;
 }
 .nav:hover { background: var(--hover-2); color: var(--text); }
+.nav-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav .row-more { opacity: 0; margin-left: 0; font-size: 13.5px; }
+.nav:has(> .row-more, > .nav-add) { padding-right: 4px; }
+.nav:hover .row-more { opacity: 1; }
 .nav.on { background: var(--hover-2); color: var(--text); }
 .nav-ico { text-align: center; color: var(--text-3); }
 .nav.on .nav-ico { color: var(--text); }
@@ -466,11 +470,10 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .side-search > * { pointer-events: auto; }
 .memo-add { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 5px; color: var(--text-3); z-index: 6; }
 .memo-add:hover { color: var(--text); }
-.memo { position: relative; margin: -6px 0 18px; padding: 6px 46px 6px 10px; background: var(--memo-m1); color: var(--memo-m1-text); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
+.memo { position: relative; margin: -6px 0 18px; padding: 6px 28px 6px 10px; background: var(--memo-m1); color: var(--memo-m1-text); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
 .memo + .memo { margin-top: -10px; }
-.memo-x { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 18px; height: 18px; border-radius: 4px; display: inline-grid; place-items: center; opacity: 0; }
-.memo:hover .memo-x, .memo:focus-within .memo-x { opacity: 1; }
-.memo-x:hover { background: var(--hover-2); color: var(--text); }
+.memo-more { position: absolute; top: 6px; right: 4px; margin-left: 0; font-size: 13.5px; }
+.memo:hover .memo-more { opacity: 1; }
 .search-results {
   position: absolute; top: 36px; left: 0; width: 320px; max-height: 420px; overflow: auto;
   background: var(--raised); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 4px;
@@ -723,11 +726,6 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .memo-blocks .bn-trailing-block { display: none; }
 .memo-blocks .bn-block-content { font-size: 15px; line-height: 1.55; }
 .memo-blocks .bn-editor { color: inherit; }
-.memo-x { color: color-mix(in srgb, currentColor 50%, transparent); }
-.memo-color { position: absolute; top: 50%; right: 26px; transform: translateY(-50%); width: 18px; height: 18px; border-radius: 4px; display: inline-grid; place-items: center; opacity: 0; }
-.memo-color span { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 1.5px color-mix(in srgb, currentColor 55%, transparent); }
-.memo:hover .memo-color, .memo:focus-within .memo-color { opacity: 1; }
-.memo-color:hover { background: var(--hover-2); }
 .memo-swatches { display: grid; grid-template-columns: repeat(6, 24px); gap: 6px; padding: 8px; }
 .memo-swatch { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line-2); }
 .memo-swatch.on { box-shadow: 0 0 0 2px var(--text); }

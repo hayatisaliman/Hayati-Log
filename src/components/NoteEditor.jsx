@@ -103,6 +103,25 @@ const theme = {
   fontFamily: "'Nanum Myeongjo', Georgia, serif",
 }
 
+// rehoverOnScroll — replays the last mousemove after a scroll so the drag handle follows the line under the cursor
+let rehoverReady = false
+function rehoverOnScroll() {
+  if (rehoverReady || typeof document === 'undefined') return
+  rehoverReady = true
+  let pos = null
+  let raf = 0
+  document.addEventListener('mousemove', (e) => { if (e.isTrusted) pos = { x: e.clientX, y: e.clientY } }, { passive: true, capture: true })
+  document.addEventListener('mouseleave', () => { pos = null })
+  document.addEventListener('scroll', () => {
+    if (!pos || raf) return
+    raf = requestAnimationFrame(() => {
+      raf = 0
+      const el = document.elementFromPoint(pos.x, pos.y)
+      if (el?.closest('.bn-container')) el.dispatchEvent(new MouseEvent('mousemove', { clientX: pos.x, clientY: pos.y, bubbles: true }))
+    })
+  }, { passive: true, capture: true })
+}
+
 const fileToDataUrl = (f) => new Promise((resolve, reject) => {
   const r = new FileReader()
   r.onload = () => resolve(r.result)
@@ -149,6 +168,7 @@ export function BlockEditor({ docId, initial, onChange, editorRef, className, me
     )
   }, [MenuExtra])
 
+  useEffect(() => { if (!noSideMenu) rehoverOnScroll() }, [])
   useEffect(() => { if (editorRef) editorRef.current = editor }, [editor, editorRef])
   useEffect(() => { if (columns) editor._tiptapEditor?.registerPlugin(columnLimit, (p, ps) => [p, ...ps]) }, [editor])
   useEffect(() => { onEditor?.(editor); return () => onEditor?.(null) }, [editor])

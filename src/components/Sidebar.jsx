@@ -6,6 +6,7 @@ import { catMeta, elapsedSec, pauseRunning, resumePaused, startBlock, stopRunnin
 import { Popover, Menu } from './Popover.jsx'
 import { BrandMark, Icon, IconPicker } from './icons.jsx'
 import { weeklyMonths } from './WeeklyPlan.jsx'
+import { addChoreSection, choresTitle } from './Chores.jsx'
 import { COLORS, cellText, MEMO_COLOR_NAMES, DEFAULT_MEMO_COLORS, hueName } from '../lib/schema.js'
 import { BlockEditor, blocksToText } from './NoteEditor.jsx'
 
@@ -155,7 +156,7 @@ export function Sidebar({ data, view, setView, weekFocus, onWeekMonth, month, se
         <button className={`nav ${view === 'report' ? 'on' : ''}`} onClick={() => setView('report')}><span className="nav-ico"><Icon name="calendar-check" /></span>Monthly Report</button>
         <button className={`nav ${view === 'quarters' ? 'on' : ''}`} onClick={() => setView('quarters')}><span className="nav-ico"><Icon name="pie" /></span>Quarterly Report</button>
         <button className={`nav ${view === 'blocks' ? 'on' : ''}`} onClick={() => setView('blocks')}><span className="nav-ico"><Icon name="stopwatch" /></span>Time Blocks</button>
-        <button className={`nav ${view === 'chores' ? 'on' : ''}`} onClick={() => setView('chores')}><span className="nav-ico"><Icon name="clipboard-check" /></span>Chores, DIY</button>
+        <ChoresNav data={data} on={view === 'chores'} onOpen={() => setView('chores')} />
 
         <NotesTree data={data} openNoteId={openNoteId} onOpenNote={onOpenNote} />
       </div>
@@ -244,6 +245,46 @@ function snippet(text, q) {
   return `${s ? '…' : ''}${text.slice(s, i + q.length + 36).replace(/\n/g, ' · ')}`
 }
 
+// ChoresNav — sidebar entry with rename / new section menu
+function ChoresNav({ data, on, onOpen }) {
+  const [menu, setMenu] = useState(null)
+  const [renaming, setRenaming] = useState(false)
+  const [iconPick, setIconPick] = useState(false)
+  const icoRef = useRef(null)
+  const title = choresTitle(data)
+  const rename = (v) => {
+    const next = v.trim()
+    if (next && next !== title) update((d) => { d.settings.choresTitle = next })
+    setRenaming(false)
+  }
+  return (
+    <div role="button" className={`nav ${on ? 'on' : ''}`} onClick={(e) => { if (!renaming && e.currentTarget.contains(e.target)) onOpen() }}>
+      <span className="nav-ico" ref={icoRef}><Icon name={data.settings.choresIcon || 'clipboard-check'} /></span>
+      {renaming ? (
+        <input autoFocus className="group-input" defaultValue={title}
+          onFocus={(e) => e.target.select()}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={(e) => rename(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') setRenaming(false) }} />
+      ) : <span className="grow nav-title">{title}</span>}
+      {!renaming && <button className="row-more" onClick={(e) => { e.stopPropagation(); setMenu(e.currentTarget) }}>⋯</button>}
+      {menu && (
+        <Popover anchor={menu} onClose={() => setMenu(null)} width={180}>
+          <Menu onPick={() => setMenu(null)} items={[
+            { icon: 'pen-line', label: 'Rename', run: () => setRenaming(true) },
+            { icon: 'smile', label: 'Change icon', run: () => setIconPick(true) },
+            { icon: 'plus', label: 'New Section', run: () => { addChoreSection(); onOpen() } },
+          ]} />
+        </Popover>
+      )}
+      {iconPick && (
+        <IconPicker anchor={icoRef.current} value={data.settings.choresIcon} onClose={() => setIconPick(false)}
+          onPick={(icon) => update((d) => { d.settings.choresIcon = icon || undefined })} />
+      )}
+    </div>
+  )
+}
+
 // Memo — sidebar sticker, removed when left empty
 function Memo({ memo, autoFocus }) {
   const wrapRef = useRef(null)
@@ -282,8 +323,7 @@ function Memo({ memo, autoFocus }) {
         noSideMenu
         onChange={(blocks) => { pending.current = blocks; clearTimeout(timer.current); timer.current = setTimeout(save, 600) }}
       />
-      <button className="memo-color" title="Memo colour" onMouseDown={(e) => e.preventDefault()} onClick={(e) => setPicker(e.currentTarget)}><span style={{ background: `var(--memo-${color})` }} /></button>
-      <button className="memo-x" title="Delete memo" onMouseDown={(e) => e.preventDefault()} onClick={remove}><Icon name="x" size={12} /></button>
+      <button className="row-more memo-more" onMouseDown={(e) => e.preventDefault()} onClick={(e) => setPicker(e.currentTarget)}>⋯</button>
       {picker && (
         <Popover anchor={picker} onClose={() => setPicker(null)} width={196}>
           <div className="memo-swatches">
@@ -292,6 +332,8 @@ function Memo({ memo, autoFocus }) {
                 onClick={() => { update((d) => { const m = (d.memos || []).find((x) => x.id === memo.id); if (m) m.color = n }); setPicker(null) }} />
             ))}
           </div>
+          <div className="menu-sep" />
+          <Menu onPick={() => setPicker(null)} items={[{ icon: 'x', label: 'Delete memo', danger: true, run: remove }]} />
         </Popover>
       )}
     </div>

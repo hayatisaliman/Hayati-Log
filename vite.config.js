@@ -4,10 +4,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-export const DATA_DIR = path.join(os.homedir(), 'Library', 'Application Support', 'com.hayati.report')
+const SUPPORT = path.join(os.homedir(), 'Library', 'Application Support')
+export const DATA_DIR = [path.join(SUPPORT, 'hayati.log'), path.join(SUPPORT, 'com.hayati.report')].find((d) => fs.existsSync(d)) || path.join(SUPPORT, 'hayati.log')
 const DATA_FILE = path.join(DATA_DIR, 'report.json')
 const SANDBOX_FILE = path.join(DATA_DIR, 'report.sandbox.json')
-const KEEP_BACKUPS = 30
+const KEEP_BACKUPS = 14
 
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
 const hostOf = (h) => String(h || '').replace(/:\d+$/, '').toLowerCase()
@@ -32,6 +33,25 @@ export function backupAndWrite(json, day) {
   fs.renameSync(tmp, DATA_FILE)
 }
 
+// pruneMedia — same as prune_media in lib.rs
+function pruneMedia() {
+  const dir = path.join(DATA_DIR, 'media')
+  if (!fs.existsSync(dir) || !fs.existsSync(DATA_FILE)) return
+  const backups = path.join(DATA_DIR, 'backups')
+  const sources = [DATA_FILE, SANDBOX_FILE, ...(fs.existsSync(backups) ? fs.readdirSync(backups).map((f) => path.join(backups, f)) : [])]
+  const refs = new Set()
+  for (const f of sources) {
+    let text
+    try { text = fs.readFileSync(f, 'utf8') } catch { if (f === DATA_FILE) return; continue }
+    for (const m of text.matchAll(/media:([\w.-]+)/g)) refs.add(m[1])
+  }
+  for (const name of fs.readdirSync(dir)) {
+    const file = path.join(dir, name)
+    const st = fs.statSync(file)
+    if (st.isFile() && !refs.has(name) && Date.now() - st.mtimeMs > 24 * 60 * 60 * 1000) fs.unlinkSync(file)
+  }
+}
+
 // dataStorePlugin — /api/data GET/PUT, same file the Tauri app uses
 function dataStorePlugin() {
   return {
@@ -45,6 +65,7 @@ function dataStorePlugin() {
           if (sandbox && !fs.existsSync(SANDBOX_FILE) && fs.existsSync(DATA_FILE)) fs.copyFileSync(DATA_FILE, SANDBOX_FILE)
           const file = sandbox ? SANDBOX_FILE : DATA_FILE
           if (!fs.existsSync(file)) return send(res, 404, '{"error":"none"}')
+          if (!sandbox) setTimeout(() => { try { pruneMedia() } catch {} })
           return send(res, 200, fs.readFileSync(file, 'utf8'))
         }
         if (req.method === 'PUT') {

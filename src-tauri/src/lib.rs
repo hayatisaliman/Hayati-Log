@@ -1,21 +1,67 @@
-use std::{fs, path::PathBuf};
+use std::{collections::HashSet, fs, path::PathBuf, time::{Duration, SystemTime}};
 use tauri::Manager;
 
-const KEEP_BACKUPS: usize = 30;
+const KEEP_BACKUPS: usize = 14;
+const MEDIA_GRACE: Duration = Duration::from_secs(24 * 60 * 60);
+const OLD_DATA_DIR: &str = "com.hayati.report";
 
 fn data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let old = dir.with_file_name(OLD_DATA_DIR);
+    if !dir.exists() && old.is_dir() {
+        fs::rename(&old, &dir).map_err(|e| e.to_string())?;
+    }
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir)
 }
 
 #[tauri::command]
 fn load_data(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let file = data_dir(&app)?.join("report.json");
+    let dir = data_dir(&app)?;
+    let file = dir.join("report.json");
     if !file.exists() {
         return Ok(None);
     }
+    std::thread::spawn(move || prune_media(dir));
     fs::read_to_string(file).map(Some).map_err(|e| e.to_string())
+}
+
+fn media_refs(text: &str, out: &mut HashSet<String>) {
+    for (i, _) in text.match_indices("media:") {
+        let name: String = text[i + 6..].chars().take_while(|c| c.is_ascii_alphanumeric() || "._-".contains(*c)).collect();
+        if valid_media_name(&name) {
+            out.insert(name);
+        }
+    }
+}
+
+// prune_media — deletes media/ files no longer referenced by the data, sandbox or any backup
+fn prune_media(dir: PathBuf) {
+    let Ok(entries) = fs::read_dir(dir.join("media")) else { return };
+    let Ok(main) = fs::read_to_string(dir.join("report.json")) else { return };
+    let mut refs = HashSet::new();
+    media_refs(&main, &mut refs);
+    let mut others = vec![dir.join("report.sandbox.json")];
+    if let Ok(b) = fs::read_dir(dir.join("backups")) {
+        others.extend(b.filter_map(|e| e.ok()).map(|e| e.path()));
+    }
+    for p in others {
+        if let Ok(t) = fs::read_to_string(p) {
+            media_refs(&t, &mut refs);
+        }
+    }
+    let now = SystemTime::now();
+    for e in entries.filter_map(|e| e.ok()) {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let Ok(meta) = e.metadata() else { continue };
+        if !meta.is_file() || refs.contains(&name) {
+            continue;
+        }
+        let old = meta.modified().ok().and_then(|t| now.duration_since(t).ok()).map_or(false, |d| d > MEDIA_GRACE);
+        if old {
+            let _ = fs::remove_file(e.path());
+        }
+    }
 }
 
 #[tauri::command]
@@ -83,6 +129,23 @@ fn read_backup(app: tauri::AppHandle, name: String) -> Result<String, String> {
     fs::read_to_string(data_dir(&app)?.join("backups").join(name)).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn export_data(app: tauri::AppHandle, json: String, name: String) -> Result<String, String> {
+    if name.is_empty() || !name.ends_with(".json") || !name.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c)) {
+        return Err("Invalid file name".into());
+    }
+    let dir = app.path().download_dir().map_err(|e| e.to_string())?;
+    let stem = name.trim_end_matches(".json");
+    let mut file = dir.join(&name);
+    let mut n = 1;
+    while file.exists() {
+        file = dir.join(format!("{stem}-{n}.json"));
+        n += 1;
+    }
+    fs::write(&file, json).map_err(|e| e.to_string())?;
+    Ok(file.to_string_lossy().into_owned())
+}
+
 fn valid_media_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('.') && name.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
 }
@@ -109,7 +172,7 @@ fn save_media(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![load_data, save_data, data_path, list_backups, read_backup, media_dir, save_media])
+        .invoke_handler(tauri::generate_handler![load_data, save_data, data_path, list_backups, read_backup, media_dir, save_media, export_data])
         .run(tauri::generate_context!())
         .expect("error while running Hayati Log");
 }

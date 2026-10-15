@@ -21,15 +21,17 @@ The app lands in `src-tauri/target/release/bundle/macos/Hayati Log.app`, and an 
 
 Build the Windows installer on GitHub: open **Actions → Windows build → Run workflow** (or push a `v*` tag). When it finishes, download the `hayati-log-windows` artifact from the run page. It contains `Hayati Log_<version>_x64-setup.exe` and the bare `hayati-log.exe`. To build on a Windows machine instead, run `npm run tauri:build:win`.
 
-On Windows the data file is `%APPDATA%\com.hayati.report\report.json`.
+On Windows the data file is `%APPDATA%\hayati.log\report.json`.
 
 ## Data
 
 All data lives in one JSON file:
 
-`~/Library/Application Support/com.hayati.report/report.json`
+`~/Library/Application Support/hayati.log/report.json`
 
-The app copies it into `backups/report-YYYY-MM-DD.json` once a day and keeps the last 30 copies. In Settings, **Export Data** saves a copy of the file, and **Restore Data** lists every backup (newest first) to restore from, or imports an exported file. A restore replaces everything and can be undone with ⌘Z.
+Older versions used a `com.hayati.report` folder. The app renames it to `hayati.log` the first time it starts.
+
+The app copies it into `backups/report-YYYY-MM-DD.json` once a day and keeps the last 14 copies. In Settings, **Export Data** saves a copy of the file, and **Restore Data** lists every backup (newest first) to restore from, or imports an exported file. A restore replaces everything and can be undone with ⌘Z.
 
 Only keep one copy open at a time (the app *or* the dev browser tab). Both write to the same file, and whichever saves last wins.
 

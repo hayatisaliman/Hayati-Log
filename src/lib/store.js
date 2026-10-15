@@ -206,5 +206,16 @@ export async function readBackup(name) {
   return JSON.parse(raw)
 }
 
+// exportData — Tauri writes to Downloads and returns the path; the browser downloads and returns the file name
+export async function exportData(json, name) {
+  if (isTauri) return invoke('export_data', { json, name })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
+  a.download = name
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+  return name
+}
+
 export const findRow = (d, id) => d.rows.find((r) => r.id === id)
 export const findField = (d, id) => d.fields.find((f) => f.id === id)

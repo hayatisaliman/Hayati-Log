@@ -15,7 +15,7 @@ from collections import Counter, defaultdict
 
 HOME = os.path.expanduser('~')
 APPFLOWY = os.path.join(HOME, 'Library/Application Support/com.appflowy.appflowy.flutter')
-OUT_DIR = os.path.join(HOME, 'Library/Application Support/com.hayati.report')
+OUT_DIR = next((d for d in (os.path.join(HOME, 'Library/Application Support', n) for n in ('hayati.log', 'com.hayati.report')) if os.path.isdir(d)), os.path.join(HOME, 'Library/Application Support/hayati.log'))
 OUT = os.path.join(OUT_DIR, 'report.json')
 BOUNDARY = 9
 
