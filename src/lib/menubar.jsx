@@ -7,7 +7,7 @@ import { DEFAULT_PALETTE, rolloverMinute } from './schema.js'
 import { logicalToday, nowMinutes } from './time.js'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-const TRAY_ICONS = ['hourglass', 'stopwatch', 'pause', 'pen-line']
+const TRAY_ICONS = ['hourglass', 'stopwatch', 'pause']
 
 // rasterize — pool icon → RGBA template image, glyph trimmed and scaled to system icon height
 async function rasterize(name, px = 54, glyph = 0.76, pad = 4) {

@@ -259,7 +259,7 @@ pub fn tray_icons<R: Runtime>(app: AppHandle<R>, icons: Vec<TrayImage>) -> Resul
         for i in icons {
             st.icons.insert(i.name, (i.rgba, i.w, i.h));
         }
-        (image(&st, "hourglass"), image(&st, "stopwatch"), if cfg!(target_os = "macos") { None } else { image(&st, "pen-line") })
+        (image(&st, "hourglass"), image(&st, "stopwatch"), None)
     };
     if cfg!(windows) {
         tick(&app, &mut Titles::default());
