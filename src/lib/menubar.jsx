@@ -3,23 +3,34 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { Icon } from '../components/icons.jsx'
 import { catMeta, elapsedSec, pauseRunning, resumePaused, startBlock, stopRunning } from '../components/TimeBlocks.jsx'
 import { getData } from './store.js'
-import { rolloverMinute } from './schema.js'
+import { DEFAULT_PALETTE, rolloverMinute } from './schema.js'
 import { logicalToday, nowMinutes } from './time.js'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const TRAY_ICONS = ['hourglass', 'stopwatch', 'pause', 'pen-line']
 
-// rasterize — pool icon → RGBA for a macOS template image
-async function rasterize(name, px = 48) {
-  const svg = renderToStaticMarkup(<Icon name={name} size={px} weight={1.5} />).replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg" color="#000"')
+// rasterize — pool icon → RGBA template image, glyph trimmed and scaled to system icon height
+async function rasterize(name, px = 54, glyph = 0.76, pad = 4) {
+  const big = 128
+  const svg = renderToStaticMarkup(<Icon name={name} size={big} weight={1.85} />).replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg" color="#000"')
   const img = new Image()
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
   await img.decode()
+  const src = document.createElement('canvas')
+  src.width = src.height = big
+  src.getContext('2d').drawImage(img, 0, 0, big, big)
+  const a = src.getContext('2d').getImageData(0, 0, big, big).data
+  let [l, t, r, b] = [big, big, -1, -1]
+  for (let y = 0; y < big; y++) for (let x = 0; x < big; x++) if (a[(y * big + x) * 4 + 3] > 8) { l = Math.min(l, x); r = Math.max(r, x); t = Math.min(t, y); b = Math.max(b, y) }
+  const scale = (px * glyph) / (b - t + 1)
+  const gw = Math.max(1, Math.round((r - l + 1) * scale))
+  const w = gw + pad * 2
   const c = document.createElement('canvas')
-  c.width = c.height = px
+  c.width = w
+  c.height = px
   const ctx = c.getContext('2d')
-  ctx.drawImage(img, 0, 0, px, px)
-  return { name, w: px, h: px, rgba: Array.from(ctx.getImageData(0, 0, px, px).data) }
+  ctx.drawImage(src, l, t, r - l + 1, b - t + 1, pad, Math.round((px - (b - t + 1) * scale) / 2), gw, (b - t + 1) * scale)
+  return { name, w, h: px, rgba: Array.from(ctx.getImageData(0, 0, w, px).data) }
 }
 
 const clip = (t, n) => (t.length > n ? `${t.slice(0, n - 1)}…` : t)
@@ -64,7 +75,7 @@ export function useMenubar(data, onView) {
 
   useEffect(() => {
     if (!isTauri) return
-    const push = () => import('@tauri-apps/api/core').then(({ invoke }) => { const d = getData(); invoke('tray_watch', { watch: watchOf(d), groups: groupsOf(d) }) })
+    const push = () => import('@tauri-apps/api/core').then(({ invoke }) => { const d = getData(); const p = { ...DEFAULT_PALETTE, ...(d.settings.palette || {}) }; invoke('tray_watch', { watch: watchOf(d), groups: groupsOf(d), colors: { green: p.green, orange: p.orange } }) })
     push()
     const t = setInterval(push, 30000)
     return () => clearInterval(t)

@@ -53,6 +53,12 @@ pub struct Group {
     cats: Vec<Cat>,
 }
 
+#[derive(Deserialize, Clone, Default)]
+pub struct Colors {
+    green: String,
+    orange: String,
+}
+
 #[derive(Deserialize)]
 pub struct TrayImage {
     name: String,
@@ -66,6 +72,7 @@ pub struct State {
     saved: Saved,
     watch: Option<Watch>,
     groups: Vec<Group>,
+    colors: Colors,
     icons: HashMap<String, (Vec<u8>, u32, u32)>,
     firing: bool,
     popup: Option<Value>,
@@ -250,10 +257,16 @@ pub fn tray_icons<R: Runtime>(app: AppHandle<R>, icons: Vec<TrayImage>) -> Resul
         }
         (image(&st, "hourglass"), image(&st, "stopwatch"), if cfg!(target_os = "macos") { None } else { image(&st, "pen-line") })
     };
-    if app.tray_by_id("timer").is_none() {
-        make_tray(&app, "timer", timer).map_err(|e| e.to_string())?;
-        make_tray(&app, "watch", watch).map_err(|e| e.to_string())?;
-        make_tray(&app, "note", note).map_err(|e| e.to_string())?;
+    for (id, icon) in [("timer", timer), ("watch", watch), ("note", note)] {
+        match app.tray_by_id(id) {
+            Some(t) => {
+                let _ = t.set_icon(icon);
+                let _ = t.set_icon_as_template(true);
+            }
+            None => {
+                make_tray(&app, id, icon).map_err(|e| e.to_string())?;
+            }
+        }
     }
     refresh_menus(&app);
     tick(&app, &mut Titles::default());
@@ -261,9 +274,10 @@ pub fn tray_icons<R: Runtime>(app: AppHandle<R>, icons: Vec<TrayImage>) -> Resul
 }
 
 #[tauri::command]
-pub fn tray_watch<R: Runtime>(app: AppHandle<R>, watch: Option<Watch>, groups: Vec<Group>) {
+pub fn tray_watch<R: Runtime>(app: AppHandle<R>, watch: Option<Watch>, groups: Vec<Group>, colors: Colors) {
     let rebuild = {
         let mut st = state(&app);
+        st.colors = colors;
         let shape = |w: &Option<Watch>| w.as_ref().map(|w| (w.label.clone(), w.paused));
         let changed = shape(&st.watch) != shape(&watch) || st.groups != groups;
         st.watch = watch;
@@ -278,7 +292,9 @@ pub fn tray_watch<R: Runtime>(app: AppHandle<R>, watch: Option<Watch>, groups: V
 #[derive(Default)]
 struct Titles {
     timer: String,
+    timer_color: String,
     watch: String,
+    watch_color: String,
     watch_icon: String,
     note: String,
 }
@@ -304,18 +320,24 @@ fn tick<R: Runtime>(app: &AppHandle<R>, last: &mut Titles) {
             Some(w) => (format!("{} {}", w.label, fmt_dur(w.elapsed_sec + now.saturating_sub(w.at_ms) / 1000)), "stopwatch"),
             None => (String::new(), "stopwatch"),
         };
-        let next = Titles { timer, watch, watch_icon: watch_icon.into(), note: clip(&st.saved.note, 30) };
+        let watch_color = if st.watch.as_ref().is_some_and(|w| !w.paused) { st.colors.green.clone() } else { String::new() };
+        let next = Titles { timer, timer_color: st.colors.orange.clone(), watch, watch_color, watch_icon: watch_icon.into(), note: clip(&st.saved.note, 30) };
         let icon = if next.watch_icon != last.watch_icon { image(&st, watch_icon) } else { None };
         (next, icon, fire)
     };
-    let title = |id: &str, t: &str| {
+    let title = |id: &str, t: &str, color: &str| {
         if let Some(tray) = app.tray_by_id(id) {
-            let _ = tray.set_title(if t.is_empty() { None } else { Some(format!(" {t}")) });
+            let text = if t.is_empty() { None } else { Some(format!(" {t}")) };
+            let _ = tray.set_title(text.as_deref());
             let _ = tray.set_tooltip(Some(if t.is_empty() { "Hayati Log" } else { t }));
+            #[cfg(target_os = "macos")]
+            if let (Some(text), Some(rgb)) = (text, hex(color)) {
+                paint_title(&tray, text, rgb);
+            }
         }
     };
-    if next.timer != last.timer { title("timer", &next.timer) }
-    if next.watch != last.watch { title("watch", &next.watch) }
+    if (&next.timer, &next.timer_color) != (&last.timer, &last.timer_color) { title("timer", &next.timer, &next.timer_color) }
+    if (&next.watch, &next.watch_color) != (&last.watch, &last.watch_color) { title("watch", &next.watch, &next.watch_color) }
     if next.note != last.note {
         if let Some(tray) = app.tray_by_id("note") {
             let _ = tray.set_title(Some(&next.note));
@@ -331,6 +353,38 @@ fn tick<R: Runtime>(app: &AppHandle<R>, last: &mut Titles) {
         refresh_menus(app);
         fire_timer(app, dur);
     }
+}
+
+fn hex(color: &str) -> Option<(f64, f64, f64)> {
+    let h = color.trim().strip_prefix('#')?;
+    if h.len() != 6 {
+        return None;
+    }
+    let c = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).ok().map(|v| v as f64 / 255.0);
+    Some((c(0)?, c(2)?, c(4)?))
+}
+
+// paint_title — status title in a palette colour; the icon stays a template image
+#[cfg(target_os = "macos")]
+fn paint_title<R: Runtime>(tray: &TrayIcon<R>, text: String, (r, g, b): (f64, f64, f64)) {
+    use objc2::{rc::Retained, runtime::AnyObject, MainThreadMarker};
+    use objc2_app_kit::{NSColor, NSFontAttributeName, NSForegroundColorAttributeName};
+    use objc2_foundation::{NSAttributedString, NSDictionary, NSString};
+    let _ = tray.with_inner_tray_icon(move |t| {
+        let (Some(item), Some(mtm)) = (t.ns_status_item(), MainThreadMarker::new()) else { return };
+        let Some(button) = item.button(mtm) else { return };
+        let color = NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, 1.0);
+        let mut keys = vec![unsafe { NSForegroundColorAttributeName }];
+        let mut vals: Vec<Retained<AnyObject>> = vec![color.into()];
+        if let Some(font) = button.font() {
+            keys.push(unsafe { NSFontAttributeName });
+            vals.push(font.into());
+        }
+        let refs: Vec<&AnyObject> = vals.iter().map(|v| &**v).collect();
+        let attrs = NSDictionary::from_slices(&keys, &refs);
+        let title = unsafe { NSAttributedString::new_with_attributes(&NSString::from_str(&text), &attrs) };
+        button.setAttributedTitle(&title);
+    });
 }
 
 fn fire_timer<R: Runtime>(app: &AppHandle<R>, dur: u64) {
