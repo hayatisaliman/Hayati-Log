@@ -392,7 +392,7 @@ export function SelectEditor({ anchor, fieldId, rowId, onClose, value: valueProp
   return (
     <Popover anchor={anchor} cover width={240} className="cell-editor select-editor" onClose={() => onClose()}>
       <div className="select-input">
-        {value.map((id) => { const o = options.find((x) => x.id === id); return o && <Chip key={id} color={o.color} onRemove={() => set(value.filter((x) => x !== id))}>{o.name}</Chip> })}
+        {value.map((id) => { const o = options.find((x) => x.id === id); return o && <Chip key={id} color={o.color} onRemove={() => set(value.filter((x) => x !== id))}>{o.label ?? o.name}</Chip> })}
         <input
           autoFocus
           value={q}
@@ -408,7 +408,7 @@ export function SelectEditor({ anchor, fieldId, rowId, onClose, value: valueProp
       <div className="select-list">
         {items.map((it, i) => it.o ? (
           <div key={it.o.id} className={`select-row ${i === hi ? 'hi' : ''}`} onMouseEnter={() => setHi(i)} onClick={() => toggle(it.o.id)}>
-            <Chip color={it.o.color}>{it.o.name}</Chip>
+            <Chip color={it.o.color}>{it.o.label ?? it.o.name}</Chip>
             {value.includes(it.o.id) && <span className="tick">✓</span>}
             {(fieldId || onEditOption) && (
               <button className="row-more" onClick={(e) => { e.stopPropagation(); setEditing({ id: it.o.id, el: e.currentTarget }) }}>⋯</button>

@@ -5,7 +5,7 @@ import { procrastination } from '../lib/procrastination.js'
 import { cycleSummary } from './MonthReport.jsx'
 import { quarterStats, qRange } from './QuarterReport.jsx'
 import { insights } from './Procrastination.jsx'
-import { catMeta } from './TimeBlocks.jsx'
+import { groupShares } from './TimeBlocks.jsx'
 
 const short = (iso) => `${toDate(iso).getDate()} ${MONTHS[toDate(iso).getMonth()].slice(0, 3)}`
 const textOf = (row, id) => cellText(row.cells[id]).trim()
@@ -39,8 +39,7 @@ export function monthMarkdown(data, month, now) {
     const e = blockEnd(b, r.date === now.today, now.minutesFor(r.date))
     const d = e == null ? 0 : Math.max(0, e - b.start)
     tracked += d
-    const g = catMeta(data, b.cats?.[0]).group || 'none'
-    groups[g] = (groups[g] || 0) + d
+    for (const [g, v] of Object.entries(groupShares(data, b, d))) groups[g] = (groups[g] || 0) + v
   }
   const cyc = cycleSummary(data.settings, dates, now.today)
 

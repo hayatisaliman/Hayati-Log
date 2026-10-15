@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { COLORS, blockEnd, wakeMinute } from '../lib/schema.js'
+import { COLORS, blockEnd, blockShares, wakeMinute } from '../lib/schema.js'
 import { fmtClock, fmtDuration, normalizeClock, nowMinutes, parseClock, parseDuration, toDate } from '../lib/time.js'
 import { update, findRow } from '../lib/store.js'
 import { Chip, SelectEditor } from './cells.jsx'
 import { Popover, Menu } from './Popover.jsx'
 import { useTip } from './Tip.jsx'
+import { Icon } from './icons.jsx'
 
 const bid = () => `b-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
 
@@ -13,6 +14,18 @@ export function catMeta(data, id) {
   if (!c) return { id, name: id, emoji: '', color: 'gray', group: null }
   const g = data.groups.find((x) => x.id === c.group)
   return { ...c, color: g?.color || 'gray', groupName: g?.name || '' }
+}
+
+export function CatIcon({ c, size = 13 }) {
+  if (c?.icon) return <span className="cat-ico"><Icon name={c.icon} size={size} /></span>
+  return c?.emoji ? <span className="cat-ico">{c.emoji}</span> : null
+}
+
+// groupShares — minutes per group for one block, split across its categories
+export function groupShares(data, b, dur) {
+  const out = {}
+  for (const { cat, min } of blockShares(b, dur)) { const g = catMeta(data, cat).group || 'none'; out[g] = (out[g] || 0) + min }
+  return out
 }
 
 const blockColor = (data, b) => COLORS[catMeta(data, b.cats?.[0]).color] || COLORS.gray
@@ -86,7 +99,7 @@ export function TimeBlocks({ row, data, isToday, nowMin, addRef, compact }) {
     const last = blocks[blocks.length - 1]
     const start = last ? (blockEnd(last, isToday, nowMin) ?? last.start + 30) : (row.cells.start ?? boundary)
     const id = bid()
-    editBlocks(row.id, (r, bs) => bs.push({ id, start, end: isToday ? null : start + 30, cats: [], text: '', plan: null }))
+    editBlocks(row.id, (r, bs) => bs.push({ id, start, end: start + 30, cats: [], text: '', plan: null }))
     setFocusId(id)
   }
 
@@ -124,7 +137,7 @@ export function TimeBlocks({ row, data, isToday, nowMin, addRef, compact }) {
                   <span className="quick-group-name" style={{ color: COLORS[g.color] }}>{g.name}</span>
                   {cats.map((c) => (
                     <button key={c.id} className={`quick-cat ${running?.cats?.[0] === c.id ? 'on' : ''}`} style={{ '--c': COLORS[g.color] }} onClick={() => quick(c.id)}>
-                      {c.emoji} {c.name}
+                      <CatIcon c={c} />{c.name}
                     </button>
                   ))}
                 </div>
@@ -167,11 +180,11 @@ export function TimeBlocks({ row, data, isToday, nowMin, addRef, compact }) {
             anchor={catPick.el}
             multi
             value={b.cats}
-            options={data.categories.filter((c) => !c.archived || b.cats.includes(c.id)).map((c) => ({ id: c.id, name: `${c.emoji} ${c.name}`, color: catMeta(data, c.id).color }))}
+            options={data.categories.filter((c) => !c.archived || b.cats.includes(c.id)).map((c) => ({ id: c.id, name: c.name, label: <><CatIcon c={c} />{c.name}</>, color: catMeta(data, c.id).color }))}
             onChange={(ids) => editBlocks(row.id, (r) => { r.blocks.find((x) => x.id === b.id).cats = ids })}
             onCreate={(name) => {
               const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Math.random().toString(36).slice(2, 5)
-              update((d) => { d.categories.push({ id, emoji: '•', name, group: d.groups[0]?.id }) })
+              update((d) => { d.categories.push({ id, emoji: '', name, group: d.groups[0]?.id }) })
               return id
             }}
             onClose={() => setCatPick(null)}
@@ -233,17 +246,34 @@ function BlockRow({ b, dur, data, rowId, boundary, isRunning, autoFocus, onPickC
   useEffect(() => setPlanText(b.plan == null ? '' : fmtDuration(b.plan)), [b.plan])
   const delta = b.plan != null && dur != null ? dur - b.plan : null
   const color = blockColor(data, b)
+  const split = b.cats.length > 1 && dur != null
+  const commitSplit = (cat, min) => {
+    const next = Object.fromEntries(Object.entries(b.split || {}).filter(([c]) => b.cats.includes(c) && c !== cat))
+    if (min != null) {
+      next[cat] = Math.max(0, Math.min(min, dur))
+      const others = b.cats.filter((c) => c !== cat)
+      if (others.every((c) => next[c] != null)) delete next[others[others.length - 1]]
+    }
+    set({ split: Object.keys(next).length ? next : undefined })
+  }
   return (
     <div className={`tb-row ${isRunning ? 'is-running' : ''}`}>
       <span className="tb-bar" style={{ background: color }} />
-      <span className="tb-time">
-        <TimeInput value={b.start} boundary={boundary} onCommit={(m) => m != null && set({ start: m })} />
-        <span className="arrow">→</span>
-        {isRunning ? <span className="now-tag">now</span> : <TimeInput value={b.end} boundary={boundary} placeholder="end" onCommit={(m) => set({ end: m == null ? null : Math.max(m, b.start) })} />}
+      <span className={`tb-time ${split ? 'stacked' : ''}`}>
+        <span className="tb-time-line">
+          <TimeInput value={b.start} boundary={boundary} onCommit={(m) => m != null && set({ start: m })} />
+          <span className="arrow">→</span>
+          {isRunning ? <span className="now-tag">now</span> : <TimeInput value={b.end} boundary={boundary} placeholder="end" onCommit={(m) => set({ end: m == null ? null : Math.max(m, b.start) })} />}
+        </span>
+        {split && <span className="tb-total num">{fmtDuration(dur)}</span>}
       </span>
-      <span className="tb-dur num">{dur != null ? fmtDuration(dur) : '—'}</span>
-      <span className="tb-cats" onClick={(e) => onPickCats(e.currentTarget)}>
-        {b.cats.length ? b.cats.map((c) => { const m = catMeta(data, c); return <Chip key={c} color={m.color}>{m.emoji} {m.name}</Chip> }) : <span className="placeholder">+ category</span>}
+      {split ? (
+        <span className="tb-dur tb-split num">
+          {blockShares(b, dur).map(({ cat, min }) => <SplitLength key={cat} value={min} typed={b.split?.[cat] != null} onCommit={(v) => commitSplit(cat, v)} />)}
+        </span>
+      ) : <span className="tb-dur num">{dur != null ? fmtDuration(dur) : '—'}</span>}
+      <span className={`tb-cats ${split ? 'stacked' : ''}`} onClick={(e) => onPickCats(e.currentTarget)}>
+        {b.cats.length ? b.cats.map((c) => { const m = catMeta(data, c); return <span key={c} className="tb-cat-line"><Chip color={m.color}><CatIcon c={m} />{m.name}</Chip></span> }) : <span className="placeholder">+ category</span>}
       </span>
       <AutoText value={b.text} placeholder="" autoFocus={autoFocus} onCommit={(text) => set({ text })} />
       <span className="tb-plan">
@@ -274,6 +304,22 @@ function BlockRow({ b, dur, data, rowId, boundary, isRunning, autoFocus, onPickC
   )
 }
 
+function SplitLength({ value, typed, onCommit }) {
+  const [v, setV] = useState(fmtDuration(value))
+  useEffect(() => setV(fmtDuration(value)), [value])
+  const commit = () => {
+    if (!v.trim()) return onCommit(null)
+    const m = parseDuration(v)
+    if (m == null || m === value) setV(fmtDuration(value))
+    else onCommit(m)
+  }
+  return (
+    <input className={`plan-input split-input num ${typed ? 'typed' : ''}`} value={v} title="Type a length. Clear it to share the time equally."
+      onChange={(e) => setV(e.target.value)} onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { setV(fmtDuration(value)); e.currentTarget.blur() } }} />
+  )
+}
+
 function Ribbon({ blocks, data, row, isToday, nowMin, compact }) {
   const ends = blocks.map((b) => blockEnd(b, isToday, nowMin) ?? b.start + 15)
   let lo = Math.min(...blocks.map((b) => b.start), row.cells.start ?? Infinity)
@@ -301,7 +347,7 @@ function Ribbon({ blocks, data, row, isToday, nowMin, compact }) {
               key={b.id}
               className={`ribbon-seg ${b.end == null && isToday ? 'live' : ''}`}
               style={{ left: pctOf(b.start), width: `calc(${((e - b.start) / span) * 100}% - 1px)`, background: COLORS[m.color] }}
-              {...bind(<><b>{b.cats.length ? b.cats.map((c) => `${catMeta(data, c).emoji} ${catMeta(data, c).name}`).join(', ') : 'Block'}</b><div>{fmtClock(b.start)} → {fmtClock(e)} · {fmtDuration(e - b.start)}</div>{b.text && <div className="muted">{b.text}</div>}</>)}
+              {...bind(<><b>{b.cats.length ? b.cats.map((c) => <span key={c}><CatIcon c={catMeta(data, c)} />{catMeta(data, c).name} </span>) : 'Block'}</b><div>{fmtClock(b.start)} → {fmtClock(e)} · {fmtDuration(e - b.start)}</div>{b.text && <div className="muted">{b.text}</div>}</>)}
             />
           )
         })}
@@ -325,10 +371,8 @@ function Totals({ blocks, durations, data }) {
   let onPlan = 0
   blocks.forEach((b, i) => {
     const d = durations[i] || 0
-    const m = catMeta(data, b.cats?.[0])
-    const gk = m.group || 'none'
-    byGroup[gk] = (byGroup[gk] || 0) + d
-    for (const c of b.cats.length ? b.cats : ['none']) { byCat[c] = (byCat[c] || 0) + d; countCat[c] = (countCat[c] || 0) + 1 }
+    for (const [g, v] of Object.entries(groupShares(data, b, d))) byGroup[g] = (byGroup[g] || 0) + v
+    for (const { cat, min } of blockShares(b, d)) { const c = cat ?? 'none'; byCat[c] = (byCat[c] || 0) + min; countCat[c] = (countCat[c] || 0) + 1 }
     if (b.plan != null && durations[i] != null) { planned++; if (durations[i] - b.plan <= 5) onPlan++ }
   })
   const total = Object.values(byGroup).reduce((a, b) => a + b, 0) || 1
@@ -375,7 +419,7 @@ function Totals({ blocks, durations, data }) {
           {catRows.map(({ c, v, m, grp, color }) => {
             return (
               <tr key={c}>
-                <td>{m.emoji} {m.name}</td>
+                <td><CatIcon c={m} />{m.name}</td>
                 <td className="muted"><span className="dot" style={{ background: color }} />{grp?.name || '—'}</td>
                 <td className="c num muted">{countCat[c]}</td>
                 <td className="r num">{fmtDuration(v)}</td>

@@ -156,7 +156,7 @@ export function Table({ data, rows, view, setView, onOpenBlocks, onNewRow, now, 
         </div>
 
         {rows.map((row) => (
-          <div key={row.id} className={`tr ${sel?.row === row.id ? 'row-sel' : ''}`}>
+          <div key={row.id} className={`tr ${sel?.row === row.id ? 'row-sel' : ''} ${row.date === now?.today ? 'today' : ''}`}>
             <div className="gutter">
               <button className="handle" title="Row menu" onClick={(e) => setRowMenu({ row: row.id, el: e.currentTarget })}><Icon name="grip" size={14} /></button>
             </div>

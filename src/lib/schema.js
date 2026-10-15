@@ -16,10 +16,10 @@ const PALETTE = { ...DEFAULT_PALETTE }
 export const ACCENT_USES = {
   gray: 'Proliferative cycle days, uncategorised time',
   light: 'Tag and group colour option, Q3 lines',
-  cyan: 'Today and now markers, sort arrow, ticks, ovulation, Week 1, Q1 lines',
+  cyan: 'Today in date pickers, running time block, current quarter, sort arrow, ticks, ovulation, Week 1, Q1 lines',
   blue: 'Text selection, switches, picked date, luteal phase, End (bedtime) dots, Week 2',
   green: 'On-time cycle status, Q2 lines, menu bar stopwatch',
-  orange: 'Note header date, weekends, late cycle, carried to-dos, Start (wake) dots, Week 3, menu bar timer',
+  orange: 'Note header date, weekends, late cycle, carried to-dos, Start (wake) dots, Week 3, menu bar timer, today\'s daily log row, this week\'s Weekly Plan box',
   red: 'Period days, delete actions, errors, Week 4',
   pink: 'Tag and group colour option, Q4 lines',
 }
@@ -352,6 +352,20 @@ export function wakeMinute(data, row, fieldId) {
   const own = row?.cells?.start
   if (own != null) return ((own % 1440) + 1440) % 1440
   return latestClock(data, 'start') ?? rolloverMinute(data)
+}
+
+// blockShares — minutes per category; b.split holds lengths the user typed, the rest share what's left
+export function blockShares(b, dur) {
+  const cats = b.cats || []
+  if (cats.length < 2) return [{ cat: cats[0] ?? null, min: dur }]
+  const split = b.split || {}
+  let left = dur
+  const fixed = {}
+  for (const c of cats) if (split[c] != null) { fixed[c] = Math.min(split[c], left); left -= fixed[c] }
+  const free = cats.filter((c) => fixed[c] == null)
+  if (!free.length) return cats.map((c) => ({ cat: c, min: fixed[c] }))
+  const each = Math.floor(left / free.length)
+  return cats.map((c) => ({ cat: c, min: fixed[c] ?? (c === free[free.length - 1] ? left - each * (free.length - 1) : each) }))
 }
 
 export function blockEnd(b, isToday, nowMin) {

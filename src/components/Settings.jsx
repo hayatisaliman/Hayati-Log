@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { FieldIcon, Icon, IconPicker } from './icons.jsx'
+import { FieldIcon, Icon, IconPicker, isEmoji } from './icons.jsx'
 import { COLORS, COLOR_NAMES, FIELD_TYPES, averageCycle, cycleHistory, cycleLen, periodLen, DEFAULT_PALETTE, NOTE_COLOR_NAMES, DEFAULT_NOTE_COLORS, hueName, ACCENT_USES, noteBgDefault, DEFAULT_CHECK_COLOR, MEMO_COLOR_NAMES, DEFAULT_MEMO_COLORS } from '../lib/schema.js'
 import { ColorSwatch } from './ColorPicker.jsx'
 import { Chip } from './cells.jsx'
 import { DatePicker } from './DatePicker.jsx'
+import { CatIcon } from './TimeBlocks.jsx'
 import { DAY_NAMES, fmtClock, isoOf, longDate } from '../lib/time.js'
 import { update, replaceData, useStatus, findField, listBackups, readBackup, exportData, MOD } from '../lib/store.js'
 import { monthMarkdown, quarterMarkdown } from './reportMarkdown.js'
@@ -16,6 +17,9 @@ export function Settings({ data, toast, now }) {
   const [newStart, setNewStart] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
+  const [drag, setDrag] = useState(null)
+  const [drop, setDrop] = useState(null)
+  const [armed, setArmed] = useState(null)
   const s = data.settings
   const active = data.categories.filter((c) => !c.archived)
   const archived = data.categories.filter((c) => c.archived)
@@ -27,6 +31,16 @@ export function Settings({ data, toast, now }) {
       update((d) => { d.categories.find((x) => x.id === c.id).archived = true })
       toast(`Archived ${c.name}. Its ${uses[c.id]} old blocks are untouched.`)
     } else update((d) => { d.categories = d.categories.filter((x) => x.id !== c.id) })
+  }
+
+  const moveCategory = () => {
+    if (drag && drop && drag !== drop.id) update((d) => {
+      const from = d.categories.findIndex((x) => x.id === drag)
+      const [c] = d.categories.splice(from, 1)
+      const to = d.categories.findIndex((x) => x.id === drop.id)
+      d.categories.splice(drop.pos === 'after' ? to + 1 : to, 0, c)
+    })
+    setDrag(null); setDrop(null); setArmed(null)
   }
 
   const saveFile = async (text, name) => {
@@ -176,16 +190,27 @@ export function Settings({ data, toast, now }) {
       </section>
 
       <section className="card">
-        <div className="card-head"><h3>Time-Block Categories</h3><span className="section-meta">The quick-start buttons on the Time blocks page</span></div>
+        <div className="card-head"><h3>Time-Block Categories</h3><span className="section-meta">Quick-start buttons and What column options. Drag to reorder.</span></div>
         <div className="set-row start-label-row">
           <span className="set-label">Sidebar start text</span>
           <input className="inline-edit grow" defaultValue={s.startLabel || 'Bismillah'} placeholder="Bismillah" onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
             onBlur={(e) => { const v = e.target.value.trim(); if (v !== (s.startLabel || 'Bismillah')) update((d) => { d.settings.startLabel = v || undefined }) }} />
         </div>
         {active.map((c) => (
-          <div key={c.id} className="set-row">
+          <div key={c.id} className={`set-row cat-row ${drag === c.id ? 'dragging' : ''} ${drop?.id === c.id ? `drop-${drop.pos}` : ''}`}
+            draggable={armed === c.id}
+            onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', c.name); setDrag(c.id) }}
+            onDragEnd={() => { setDrag(null); setDrop(null); setArmed(null) }}
+            onDragOver={(e) => {
+              if (!drag || drag === c.id) return
+              e.preventDefault()
+              const r = e.currentTarget.getBoundingClientRect()
+              setDrop({ id: c.id, pos: e.clientY < r.top + r.height / 2 ? 'before' : 'after' })
+            }}
+            onDrop={(e) => { e.preventDefault(); moveCategory() }}>
+            <span className="cat-grip" title="Drag to reorder" onMouseDown={() => setArmed(c.id)} onMouseUp={() => setArmed(null)}><Icon name="grip" size={14} /></span>
             <span className="swatch" style={{ background: COLORS[data.groups.find((g) => g.id === c.group)?.color] || COLORS.gray }} />
-            <input className="inline-edit emoji" defaultValue={c.emoji} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} onBlur={(e) => update((d) => { d.categories.find((x) => x.id === c.id).emoji = e.target.value.trim() })} />
+            <CategoryIcon cat={c} />
             <input className="inline-edit grow" defaultValue={c.name} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} onBlur={(e) => e.target.value.trim() && update((d) => { d.categories.find((x) => x.id === c.id).name = e.target.value.trim() })} />
             <select className="select" value={c.group} onChange={(e) => update((d) => { d.categories.find((x) => x.id === c.id).group = e.target.value })}>
               {data.groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -194,7 +219,7 @@ export function Settings({ data, toast, now }) {
             <button className="icon-btn" title="Remove category" onClick={() => removeCategory(c)}>✕</button>
           </div>
         ))}
-        <button className="btn add-cat" onClick={() => update((d) => { d.categories.push({ id: `c-${Math.random().toString(36).slice(2, 7)}`, emoji: '•', name: 'New category', group: d.groups[0]?.id }) })}>Add Category</button>
+        <button className="btn add-cat" onClick={() => update((d) => { d.categories.push({ id: `c-${Math.random().toString(36).slice(2, 7)}`, emoji: '', name: 'New category', group: d.groups[0]?.id }) })}>Add Category</button>
         {archived.length > 0 && (
           <>
             <button className={`mini-head archived-toggle ${showArchived ? 'open' : ''}`} onClick={() => setShowArchived(!showArchived)}>
@@ -203,7 +228,7 @@ export function Settings({ data, toast, now }) {
             {showArchived && archived.map((c) => (
               <div key={c.id} className="set-row archived">
                 <span className="swatch" style={{ background: COLORS[data.groups.find((g) => g.id === c.group)?.color] || COLORS.gray }} />
-                <span className="grow">{c.emoji} {c.name}</span>
+                <span className="grow"><CatIcon c={c} />{c.name}</span>
                 <span className="muted cat-uses">{uses[c.id] || 0} blocks</span>
                 <button className="btn tiny ghost" onClick={() => update((d) => { delete d.categories.find((x) => x.id === c.id).archived })}>Restore</button>
                 <button className={`btn tiny ghost danger ${confirmDel === c.id ? 'on' : ''}`} onBlur={() => setConfirmDel(null)}
@@ -390,6 +415,24 @@ function IconButton({ field }) {
     <>
       <button className="icon-btn" title="Change icon" onClick={(e) => setEl(e.currentTarget)}><FieldIcon type={field.type} icon={field.icon} /></button>
       {el && <IconPicker anchor={el} value={field.icon} onClose={() => setEl(null)} onPick={(icon) => update((d) => { const f = findField(d, field.id); if (icon) f.icon = icon; else delete f.icon })} />}
+    </>
+  )
+}
+
+function CategoryIcon({ cat }) {
+  const [el, setEl] = useState(null)
+  const set = (v) => update((d) => {
+    const c = d.categories.find((x) => x.id === cat.id)
+    c.emoji = isEmoji(v) ? v : ''
+    if (v && !isEmoji(v)) c.icon = v
+    else delete c.icon
+  })
+  return (
+    <>
+      <button className="icon-btn cat-icon-btn" title="Change icon" onClick={(e) => setEl(e.currentTarget)}>
+        {cat.icon || cat.emoji ? <CatIcon c={cat} size={15} /> : <Icon name="smile" size={15} />}
+      </button>
+      {el && <IconPicker anchor={el} value={cat.icon || cat.emoji} onClose={() => setEl(null)} onPick={set} />}
     </>
   )
 }

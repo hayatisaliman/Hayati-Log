@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { DAY_NAMES, addDays, fmtDuration, weekday } from '../lib/time.js'
 import { COLORS, blockEnd } from '../lib/schema.js'
-import { TimeBlocks, catMeta } from './TimeBlocks.jsx'
+import { TimeBlocks, groupShares } from './TimeBlocks.jsx'
 import { useTip } from './Tip.jsx'
 import { ClockText } from './cells.jsx'
 import { DateNav } from './DatePicker.jsx'
@@ -22,8 +22,7 @@ export function TimeBlocksPage({ data, date, setDate, now, onGoToDay }) {
     for (const b of r?.blocks || []) {
       const e = blockEnd(b, d === now.today, now.minutesFor(d))
       if (e == null) continue
-      const g = catMeta(data, b.cats?.[0]).group || 'none'
-      by[g] = (by[g] || 0) + Math.max(0, e - b.start)
+      for (const [g, v] of Object.entries(groupShares(data, b, Math.max(0, e - b.start)))) by[g] = (by[g] || 0) + v
     }
     const total = Object.values(by).reduce((a, b) => a + b, 0)
     return { total, list: Object.entries(by).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([g, v]) => ({ g, v, grp: data.groups.find((x) => x.id === g) })) }

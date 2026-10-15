@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Popover } from './Popover.jsx'
 
 const F = { fill: 'currentColor', stroke: 'none' }
@@ -150,6 +150,7 @@ const TYPE_ICON = {
 }
 
 export function Icon({ name, size = 16, weight = 1.35 }) {
+  if (isEmoji(name)) return <span className="field-icon emoji-icon" style={{ fontSize: size * 0.95, width: size, height: size }} aria-hidden="true">{name}</span>
   return (
     <svg className="field-icon" viewBox="0 0 16 16" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {ICONS[name] || ICONS.text}
@@ -172,26 +173,59 @@ export function BrandMark({ size = 22 }) {
 }
 
 export function FieldIcon({ type, icon }) {
-  return <Icon name={ICONS[icon] ? icon : TYPE_ICON[type] || 'text'} />
+  return <Icon name={ICONS[icon] || isEmoji(icon) ? icon : TYPE_ICON[type] || 'text'} />
 }
+
+const EMOJI_RANGES = [[0x1f600, 0x1f64f], [0x1f910, 0x1f9ff], [0x1f466, 0x1f4ff], [0x1f300, 0x1f465], [0x1f680, 0x1f6ff], [0x1fa70, 0x1faff], [0x1f500, 0x1f5ff], [0x2600, 0x27bf], [0x2b00, 0x2bff]]
+let emojiList
+// allEmoji — single-codepoint system emoji, built once from Unicode properties
+function allEmoji() {
+  if (emojiList) return emojiList
+  const pict = /\p{Extended_Pictographic}/u
+  const pres = /\p{Emoji_Presentation}/u
+  emojiList = []
+  for (const [a, b] of EMOJI_RANGES) for (let cp = a; cp <= b; cp++) {
+    const ch = String.fromCodePoint(cp)
+    if (pres.test(ch)) emojiList.push(ch)
+    else if (pict.test(ch)) emojiList.push(`${ch}\uFE0F`)
+  }
+  return emojiList
+}
+
+export const isEmoji = (v) => !!v && !ICONS[v] && /\p{Extended_Pictographic}/u.test(v)
 
 export function IconPicker({ anchor, value, onPick, onClose }) {
   const [q, setQ] = useState('')
+  const [page, setPage] = useState(isEmoji(value) ? 1 : 0)
+  const pages = useRef(null)
   const list = ICON_NAMES.filter((n) => n.includes(q.trim().toLowerCase()))
+  const go = (i) => pages.current?.scrollTo({ left: i * pages.current.clientWidth, behavior: 'smooth' })
+  useLayoutEffect(() => { if (page && pages.current) pages.current.scrollLeft = pages.current.clientWidth }, [])
+  const pick = (v) => { onPick(v); onClose() }
   return (
     <Popover anchor={anchor} onClose={onClose} width={300}>
       <div className="icon-picker">
         <div className="icon-picker-top">
-          <input autoFocus className="line-editor slim" placeholder="Search icons" value={q} onChange={(e) => setQ(e.target.value)} />
-          <button className="btn ghost" onClick={() => { onPick(null); onClose() }}>Reset</button>
+          <input autoFocus className="line-editor slim" placeholder={page ? 'Emoji' : 'Search icons'} disabled={!!page} value={page ? '' : q} onChange={(e) => setQ(e.target.value)} />
+          <button className="btn ghost" onClick={() => pick(null)}>Reset</button>
         </div>
-        <div className="icon-grid">
-          {list.map((n) => (
-            <button key={n} className={`icon-cell ${value === n ? 'on' : ''}`} title={n} onClick={() => { onPick(n); onClose() }}>
-              <Icon name={n} size={18} />
-            </button>
-          ))}
-          {!list.length && <div className="empty-note">No icons</div>}
+        <div className="icon-tabs">
+          {['Icons', 'Emoji'].map((t, i) => <button key={t} className={`icon-tab ${page === i ? 'on' : ''}`} onClick={() => go(i)}>{t}</button>)}
+        </div>
+        <div ref={pages} className="icon-pages" onScroll={(e) => setPage(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>
+          <div className="icon-grid">
+            {list.map((n) => (
+              <button key={n} className={`icon-cell ${value === n ? 'on' : ''}`} title={n} onClick={() => pick(n)}>
+                <Icon name={n} size={18} />
+              </button>
+            ))}
+            {!list.length && <div className="empty-note">No icons</div>}
+          </div>
+          <div className="icon-grid emoji-grid">
+            {allEmoji().map((e) => (
+              <button key={e} className={`icon-cell ${value === e ? 'on' : ''}`} onClick={() => pick(e)}>{e}</button>
+            ))}
+          </div>
         </div>
       </div>
     </Popover>

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { cellText, COLORS, cycleInfo, cycleHistory, cycleLen, blockEnd } from '../lib/schema.js'
 import { DAY_SHORT, MONTHS, addDays, daysInMonth, fmtClock, fmtDuration, monthLabel, pad, weekday, toDate } from '../lib/time.js'
-import { catMeta } from './TimeBlocks.jsx'
+import { CatIcon, catMeta, groupShares } from './TimeBlocks.jsx'
 import { Chip } from './cells.jsx'
 import { useTip } from './Tip.jsx'
 import { ScrollTabs } from './ScrollTabs.jsx'
@@ -35,8 +35,7 @@ export function MonthReport({ data, month, months, setMonth, onOpen, now }) {
   for (const r of rows) for (const b of r.blocks) {
     const d = blockDur(r, b)
     tracked += d
-    const g = catMeta(data, b.cats?.[0]).group || 'none'
-    groupTotals[g] = (groupTotals[g] || 0) + d
+    for (const [g, v] of Object.entries(groupShares(data, b, d))) groupTotals[g] = (groupTotals[g] || 0) + v
   }
   const stateCounts = (stateField?.options || []).map((o) => ({ o, n: rows.filter((r) => (r.cells.state || []).includes(o.id)).length })).filter((x) => x.n).sort((a, b) => b.n - a.n)
 
@@ -44,7 +43,7 @@ export function MonthReport({ data, month, months, setMonth, onOpen, now }) {
   const chartOptions = [...(stateField?.options || []), ...(field('exercise') ? [{ id: 'exercise', name: field('exercise').name, color: 'orange', cell: true }] : [])]
   const workGroup = data.groups.find((g) => g.id === 'work')
   const restGroup = data.groups.find((g) => g.id === 'rest')
-  const groupMins = (d, id) => (byDate[d] ? byDate[d].blocks.filter((b) => catMeta(data, b.cats?.[0]).group === id).reduce((t, b) => t + blockDur(byDate[d], b), 0) : 0)
+  const groupMins = (d, id) => (byDate[d] ? byDate[d].blocks.reduce((t, b) => t + (groupShares(data, b, blockDur(byDate[d], b))[id] || 0), 0) : 0)
   const rowOf = Object.fromEntries(data.rows.map((r) => [r.date, r]))
   const notesOf = (d) => ['friction', 'rest'].map((id) => field(id) && byDate[d] && textOf(byDate[d], id) ? { label: field(id).name, text: textOf(byDate[d], id) } : null).filter(Boolean)
   const extras = dates.map((d) => ({
@@ -150,7 +149,7 @@ export function MonthReport({ data, month, months, setMonth, onOpen, now }) {
                     if (e == null) return null
                     const m = catMeta(data, b.cats?.[0])
                     return <span key={b.id} className="rhythm-seg" style={{ left: x(b.start), width: `calc(${((e - b.start) / span) * 100}% - 1px)`, background: COLORS[m.color] }}
-                      {...bind(<><b>{m.emoji} {b.cats.map((c) => catMeta(data, c).name).join(', ') || 'Block'}</b><div>{fmtClock(b.start)} → {fmtClock(e)} · {fmtDuration(e - b.start)}</div>{b.text && <div className="muted">{b.text}</div>}</>)} />
+                      {...bind(<><b><CatIcon c={m} />{b.cats.map((c) => catMeta(data, c).name).join(', ') || 'Block'}</b><div>{fmtClock(b.start)} → {fmtClock(e)} · {fmtDuration(e - b.start)}</div>{b.text && <div className="muted">{b.text}</div>}</>)} />
                   })}
                 </div>
               </div>

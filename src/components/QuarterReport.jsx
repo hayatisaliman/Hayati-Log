@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { COLORS, blockEnd, cycleHistory, cycleInfo } from '../lib/schema.js'
 import { MONTHS, daysInMonth, fmtClock, fmtDuration, pad } from '../lib/time.js'
 import { avg, sleepOn, clockWindow, inWindow } from '../lib/report.js'
-import { catMeta } from './TimeBlocks.jsx'
+import { groupShares } from './TimeBlocks.jsx'
 import { useTip } from './Tip.jsx'
 import { ScrollTabs } from './ScrollTabs.jsx'
 import { Icon } from './icons.jsx'
@@ -34,7 +34,7 @@ function groupMinsOn(data, rowOf, d, now, id) {
   if (!r || d > now.today) return 0
   return r.blocks.reduce((t, b) => {
     const e = blockEnd(b, d === now.today, now.minutesFor(d))
-    return e == null || catMeta(data, b.cats?.[0]).group !== id ? t : t + Math.max(0, e - b.start)
+    return e == null ? t : t + (groupShares(data, b, Math.max(0, e - b.start))[id] || 0)
   }, 0)
 }
 
@@ -52,7 +52,7 @@ export function quarterStats(data, year, q, now, rowOf) {
   const rows = past.map((d) => rowOf[d]).filter(Boolean)
   const logged = rows.filter((r) => Object.keys(r.cells).length || r.blocks.length)
   const minsOf = (r, b) => { const e = blockEnd(b, r.date === now.today, now.minutesFor(r.date)); return e == null ? 0 : Math.max(0, e - b.start) }
-  const groupMins = (id) => rows.reduce((t, r) => t + r.blocks.filter((b) => catMeta(data, b.cats?.[0]).group === id).reduce((s, b) => s + minsOf(r, b), 0), 0)
+  const groupMins = (id) => rows.reduce((t, r) => t + r.blocks.reduce((s, b) => s + (groupShares(data, b, minsOf(r, b))[id] || 0), 0), 0)
   const tracked = rows.reduce((t, r) => t + r.blocks.reduce((s, b) => s + minsOf(r, b), 0), 0)
   const starts = rows.map((r) => r.cells.start).filter((v) => v != null)
   const ends = rows.map((r) => r.cells.end).filter((v) => v != null)
