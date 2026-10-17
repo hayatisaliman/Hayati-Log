@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { Icon } from './icons.jsx'
+import { useEffect, useState } from 'react'
 import { DateNav } from './DatePicker.jsx'
 import { update } from '../lib/store.js'
 import { newRow, wakeMinute } from '../lib/schema.js'
@@ -15,7 +14,6 @@ export function QuickEntry({ data, onSaved }) {
   const [start, setStart] = useState(show(row?.cells.start))
   const [end, setEnd] = useState(show(row?.cells.end))
   const [bad, setBad] = useState(null)
-  const endRef = useRef(null)
 
   useEffect(() => { setStart(show(row?.cells.start)); setEnd(show(row?.cells.end)); setBad(null) }, [date, row?.cells.start, row?.cells.end])
 
@@ -40,9 +38,8 @@ export function QuickEntry({ data, onSaved }) {
     onSaved?.(id, date, label(date))
   }
 
-  const field = (key, value, set, ref, onEnter) => (
+  const field = (key, value, set) => (
     <input
-      ref={ref}
       className={`qe-time ${bad === key ? 'bad' : ''}`}
       placeholder={key === 'start' ? 'Start' : 'End'}
       title="Type 4 30 a for 4:30 AM"
@@ -50,16 +47,15 @@ export function QuickEntry({ data, onSaved }) {
       onFocus={(e) => e.target.select()}
       onChange={(e) => { set(e.target.value); if (bad === key) setBad(null) }}
       onBlur={() => { const m = parseClock(value); if (value.trim() && m != null) set(fmtClock(m)) }}
-      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter() } }}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
     />
   )
 
   return (
     <div className="quick-entry">
       <DateNav value={date} onChange={setDate} />
-      {field('start', start, setStart, null, () => endRef.current?.focus())}
-      {field('end', end, setEnd, endRef, submit)}
-      <button className="qe-go" title="Save to this day's row" onClick={submit}><Icon name="arrow-right" size={15} /></button>
+      {field('start', start, setStart)}
+      {field('end', end, setEnd)}
     </div>
   )
 }

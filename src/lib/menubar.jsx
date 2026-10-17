@@ -75,7 +75,7 @@ export function useMenubar(data, onView) {
 
   useEffect(() => {
     if (!isTauri) return
-    const push = () => import('@tauri-apps/api/core').then(({ invoke }) => { const d = getData(); const p = { ...DEFAULT_PALETTE, ...(d.settings.palette || {}) }; invoke('tray_watch', { watch: watchOf(d), groups: groupsOf(d), colors: { green: p.green, orange: p.orange } }) })
+    const push = () => import('@tauri-apps/api/core').then(({ invoke }) => { const d = getData(); const m = d.settings.menubarColors || {}; invoke('tray_watch', { watch: watchOf(d), groups: groupsOf(d), colors: { green: m.stopwatch || DEFAULT_PALETTE.green, orange: m.timer || DEFAULT_PALETTE.orange } }) })
     push()
     const t = setInterval(push, 30000)
     return () => clearInterval(t)

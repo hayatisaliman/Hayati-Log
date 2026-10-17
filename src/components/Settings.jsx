@@ -156,6 +156,15 @@ export function Settings({ data, toast, now }) {
         </div>
         <div className="mini-head">Time-block groups · ribbon and reports</div>
         <div className="palette-grid">
+          {[['timer', 'orange', 'Menu bar timer'], ['stopwatch', 'green', 'Menu bar stopwatch']].map(([k, def, use]) => {
+            const v = s.menubarColors?.[k] || DEFAULT_PALETTE[def]
+            return (
+              <label key={k} className="palette-item">
+                <ColorSwatch value={v} onChange={(c) => update((d) => { d.settings.menubarColors = { ...(d.settings.menubarColors || {}), [k]: COLORS[c] || c } })} />
+                <span className="palette-label"><b>{hueName(v)}</b><small>{use}</small></span><span className="hex">{v}</span>
+              </label>
+            )
+          })}
           {data.groups.map((g) => {
             const used = data.categories.some((c) => c.group === g.id)
             return (
@@ -173,7 +182,7 @@ export function Settings({ data, toast, now }) {
             <span className="group-add-ico"><Icon name="plus" size={12} /></span>Add group
           </button>
         </div>
-        <button className="btn" onClick={() => update((d) => { delete d.settings.palette; delete d.settings.noteColors; delete d.settings.noteBgColors; delete d.settings.checkColor; delete d.settings.memoColors })}>Reset All Colours</button>
+        <button className="btn" onClick={() => update((d) => { delete d.settings.palette; delete d.settings.noteColors; delete d.settings.noteBgColors; delete d.settings.checkColor; delete d.settings.memoColors; delete d.settings.menubarColors })}>Reset All Colours</button>
       </section>
 
       <section className="card">

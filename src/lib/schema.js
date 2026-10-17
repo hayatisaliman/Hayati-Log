@@ -18,8 +18,8 @@ export const ACCENT_USES = {
   light: 'Tag and group colour option, Q3 lines',
   cyan: 'Today in date pickers, running time block, current quarter, sort arrow, ticks, ovulation, Week 1, Q1 lines',
   blue: 'Text selection, switches, picked date, luteal phase, End (bedtime) dots, Week 2',
-  green: 'On-time cycle status, Q2 lines, menu bar stopwatch',
-  orange: 'Note header date, weekends, late cycle, carried to-dos, Start (wake) dots, Week 3, menu bar timer, today\'s daily log row, this week\'s Weekly Plan box',
+  green: 'On-time cycle status, Q2 lines',
+  orange: 'Note header date, weekends, late cycle, carried to-dos, Start (wake) dots, Week 3, today\'s daily log row, this week\'s Weekly Plan box',
   red: 'Period days, delete actions, errors, Week 4',
   pink: 'Tag and group colour option, Q4 lines',
 }

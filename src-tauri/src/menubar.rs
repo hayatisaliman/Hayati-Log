@@ -342,14 +342,17 @@ fn tick<R: Runtime>(app: &AppHandle<R>, last: &mut Titles) {
     let title = |id: &str, t: &str, color: &str| {
         if let Some(tray) = app.tray_by_id(id) {
             let text = if t.is_empty() { None } else { Some(format!(" {t}")) };
-            let _ = tray.set_title(text.as_deref());
-            let _ = tray.set_tooltip(Some(if t.is_empty() { "Hayati Log" } else { t }));
             #[cfg(target_os = "macos")]
-            if let (Some(text), Some(rgb)) = (text, hex(color)) {
-                paint_title(&tray, text, rgb);
+            match (text, hex(color)) {
+                (Some(text), Some(rgb)) => paint_title(&tray, text, rgb),
+                (text, _) => { let _ = tray.set_title(text.as_deref()); }
             }
             #[cfg(not(target_os = "macos"))]
-            let _ = color;
+            {
+                let _ = color;
+                let _ = tray.set_title(text.as_deref());
+            }
+            let _ = tray.set_tooltip(Some(if t.is_empty() { "Hayati Log" } else { t }));
         }
     };
     if (&next.timer, &next.timer_color) != (&last.timer, &last.timer_color) { title("timer", &next.timer, &next.timer_color) }
@@ -393,7 +396,7 @@ fn hex(color: &str) -> Option<(f64, f64, f64)> {
 #[cfg(target_os = "macos")]
 fn paint_title<R: Runtime>(tray: &TrayIcon<R>, text: String, (r, g, b): (f64, f64, f64)) {
     use objc2::{rc::Retained, runtime::AnyObject, MainThreadMarker};
-    use objc2_app_kit::{NSColor, NSFontAttributeName, NSForegroundColorAttributeName};
+    use objc2_app_kit::{NSColor, NSFont, NSFontAttributeName, NSForegroundColorAttributeName};
     use objc2_foundation::{NSAttributedString, NSDictionary, NSString};
     let _ = tray.with_inner_tray_icon(move |t| {
         let (Some(item), Some(mtm)) = (t.ns_status_item(), MainThreadMarker::new()) else { return };
@@ -403,7 +406,7 @@ fn paint_title<R: Runtime>(tray: &TrayIcon<R>, text: String, (r, g, b): (f64, f6
         let mut vals: Vec<Retained<AnyObject>> = vec![color.into()];
         if let Some(font) = button.font() {
             keys.push(unsafe { NSFontAttributeName });
-            vals.push(font.into());
+            vals.push(NSFont::monospacedDigitSystemFontOfSize_weight(font.pointSize(), 0.0).into());
         }
         let refs: Vec<&AnyObject> = vals.iter().map(|v| &**v).collect();
         let attrs = NSDictionary::from_slices(&keys, &refs);

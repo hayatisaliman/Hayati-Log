@@ -1,6 +1,6 @@
 [package]
 name = "hayati-log"
-version = "0.1.6"
+version = "0.1.7"
 description = "Hayati Log — daily and monthly notes"
 authors = ["Hayati"]
 edition = "2021"
@@ -27,7 +27,7 @@ tauri-plugin-single-instance = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSWindow", "NSPanel", "NSGraphics", "NSAttributedString", "NSColor", "NSFont", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSView"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSWindow", "NSPanel", "NSGraphics", "NSAttributedString", "NSColor", "NSFont", "NSFontDescriptor", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSView"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSProcessInfo", "NSString", "NSAttributedString", "NSDictionary"] }
 
 [target.'cfg(windows)'.dependencies]
