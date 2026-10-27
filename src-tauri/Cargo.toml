@@ -1,6 +1,6 @@
 [package]
 name = "hayati-log"
-version = "0.1.8"
+version = "0.1.9"
 description = "Hayati Log — daily and monthly notes"
 authors = ["Hayati"]
 edition = "2021"
