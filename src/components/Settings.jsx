@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { FieldIcon, Icon, IconPicker, isEmoji } from './icons.jsx'
-import { COLORS, COLOR_NAMES, FIELD_TYPES, averageCycle, cycleHistory, cycleLen, periodLen, DEFAULT_PALETTE, NOTE_COLOR_NAMES, DEFAULT_NOTE_COLORS, hueName, ACCENT_USES, noteBgDefault, DEFAULT_CHECK_COLOR, MEMO_COLOR_NAMES, DEFAULT_MEMO_COLORS } from '../lib/schema.js'
+import { COLORS, COLOR_NAMES, FIELD_TYPES, averageCycle, cycleHistory, cycleLen, periodLen, DEFAULT_PALETTE, NOTE_COLOR_NAMES, DEFAULT_NOTE_COLORS, hueName, ACCENT_USES, noteBgDefault, DEFAULT_CHECK_COLOR, MEMO_COLOR_NAMES, DEFAULT_MEMO_COLORS, DEFAULT_NOTE_BG_COLORS, DEFAULT_MENUBAR_COLORS } from '../lib/schema.js'
 import { ColorSwatch } from './ColorPicker.jsx'
 import { Chip } from './cells.jsx'
 import { DatePicker } from './DatePicker.jsx'
@@ -126,7 +126,7 @@ export function Settings({ data, toast, now }) {
         <div className="mini-head">Notes &amp; Weekly Plan · text background</div>
         <div className="palette-grid">
           {NOTE_COLOR_NAMES.map((n) => {
-            const v = s.noteBgColors?.[n] || noteBgDefault(s.noteColors?.[n] || DEFAULT_NOTE_COLORS[n])
+            const v = s.noteBgColors?.[n] || (s.noteColors?.[n] ? noteBgDefault(s.noteColors[n]) : DEFAULT_NOTE_BG_COLORS[n])
             return (
               <label key={n} className="palette-item">
                 <ColorSwatch value={v} onChange={(c) => update((d) => { d.settings.noteBgColors = { ...(d.settings.noteBgColors || {}), [n]: COLORS[c] || c } })} />
@@ -156,8 +156,8 @@ export function Settings({ data, toast, now }) {
         </div>
         <div className="mini-head">Time-block groups · ribbon and reports</div>
         <div className="palette-grid">
-          {[['timer', 'orange', 'Menu bar timer'], ['stopwatch', 'green', 'Menu bar stopwatch']].map(([k, def, use]) => {
-            const v = s.menubarColors?.[k] || DEFAULT_PALETTE[def]
+          {[['timer', 'Menu bar timer'], ['stopwatch', 'Menu bar stopwatch']].map(([k, use]) => {
+            const v = s.menubarColors?.[k] || DEFAULT_MENUBAR_COLORS[k]
             return (
               <label key={k} className="palette-item">
                 <ColorSwatch value={v} onChange={(c) => update((d) => { d.settings.menubarColors = { ...(d.settings.menubarColors || {}), [k]: COLORS[c] || c } })} />

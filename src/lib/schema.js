@@ -3,14 +3,15 @@ import { plainText } from './richText.js'
 
 export const DEFAULT_PALETTE = {
   gray: '#8a8a8a',
-  light: '#f2f0f0',
-  cyan: '#19f2ff',
-  blue: '#3084ff',
-  green: '#71ff19',
-  orange: '#ffa41c',
-  red: '#ff483c',
-  pink: '#f30058',
+  light: '#e6db9f',
+  cyan: '#027571',
+  blue: '#1e7cb3',
+  green: '#9563b3',
+  orange: '#b3541e',
+  red: '#a13333',
+  pink: '#7d8dee',
 }
+export const DEFAULT_MENUBAR_COLORS = { timer: '#ffa41c', stopwatch: '#71ff19' }
 const PALETTE = { ...DEFAULT_PALETTE }
 
 export const ACCENT_USES = {
@@ -49,9 +50,10 @@ export function hueName(hex) {
 }
 
 export const DEFAULT_NOTE_COLORS = {
-  gray: '#9a9a9a', brown: '#c08a5b', red: '#ff483c', orange: '#ffa41c', yellow: '#ffd84a',
-  green: '#71ff19', blue: '#3084ff', purple: '#a66bff', pink: '#f30058',
+  gray: '#9a9a9a', brown: '#c08a5b', red: '#a13333', orange: '#b3541e', yellow: '#fff4b7',
+  green: '#006a67', blue: '#b8c2ff', purple: '#a66bff', pink: '#f30058',
 }
+export const DEFAULT_NOTE_BG_COLORS = { gray: '#2b2b2b', red: '#461111', orange: '#4a2410', yellow: '#4a4630', green: '#00302e', blue: '#003161' }
 // nearestNoteColor — retired note colours render as the closest kept one
 const nearestNoteColor = (hex, notes) => {
   const a = hsl(hex)
@@ -69,9 +71,9 @@ export function noteBgDefault(hex) {
   const b = rgb('#111111')
   return `#${a.map((v, i) => Math.round(v * 0.22 + b[i] * 0.78).toString(16).padStart(2, '0')).join('')}`
 }
-export const DEFAULT_CHECK_COLOR = '#3084ff'
+export const DEFAULT_CHECK_COLOR = '#1e7cb3'
 export const MEMO_COLOR_NAMES = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6']
-export const DEFAULT_MEMO_COLORS = { m1: '#2b2b2b', m2: '#4a3f1c', m3: '#1e3d2c', m4: '#1d2f4d', m5: '#4a1f36', m6: '#f2f0f0' }
+export const DEFAULT_MEMO_COLORS = { m1: '#2b2b2b', m2: '#461111', m3: '#00302e', m4: '#003161', m5: '#000b58', m6: '#fff4b7' }
 const isLight = (hex) => { const [r, g, b] = rgb(hex); return 0.299 * r + 0.587 * g + 0.114 * b > 150 }
 
 let applied = ''
@@ -84,7 +86,7 @@ export function applyPalette(settings) {
   const root = document.documentElement.style
   for (const n of ['cyan', 'blue', 'green', 'orange', 'red', 'pink']) root.setProperty(`--${n}`, PALETTE[n])
   const notes = { ...DEFAULT_NOTE_COLORS, ...(settings.noteColors || {}) }
-  const bg = (n) => settings.noteBgColors?.[n] || `color-mix(in srgb, ${notes[n]} 22%, transparent)`
+  const bg = (n) => settings.noteBgColors?.[n] || (settings.noteColors?.[n] || !DEFAULT_NOTE_BG_COLORS[n] ? `color-mix(in srgb, ${notes[n]} 22%, transparent)` : DEFAULT_NOTE_BG_COLORS[n])
   for (const n of NOTE_COLOR_NAMES) {
     root.setProperty(`--hl-${n}`, notes[n])
     root.setProperty(`--hlbg-${n}`, bg(n))
@@ -215,11 +217,11 @@ export const DEFAULT_ICONS = {
 
 function defaultGroups() {
   return [
-    { id: 'work', name: 'Work', color: 'blue' },
-    { id: 'self', name: 'Self-care', color: 'green' },
-    { id: 'home', name: 'Home', color: 'orange' },
-    { id: 'rest', name: 'Rest', color: 'pink' },
-    { id: 'out', name: 'Out', color: 'cyan' },
+    { id: 'work', name: 'Work', color: '#1e7cb3' },
+    { id: 'self', name: 'Self-care', color: '#006a67' },
+    { id: 'home', name: 'Home', color: '#b3541e' },
+    { id: 'rest', name: 'Rest', color: '#b8c2ff' },
+    { id: 'out', name: 'Out', color: '#fff4b7' },
   ]
 }
 

@@ -1,5 +1,5 @@
 :root {
-  --check: #3084ff;
+  --check: #1e7cb3;
   --bg: #000000;
   --side: #0c0c0c;
   --surface: #111111;
@@ -12,13 +12,13 @@
   --text: #f2f0f0;
   --text-2: #aaaaaa;
   --text-3: #666666;
-  --cyan: #19f2ff;
-  --blue: #3084ff;
-  --green: #71ff19;
-  --orange: #ffa41c;
-  --red: #ff483c;
-  --pink: #f30058;
-  --focus: #3084ff;
+  --cyan: #027571;
+  --blue: #1e7cb3;
+  --green: #9563b3;
+  --orange: #b3541e;
+  --red: #a13333;
+  --pink: #7d8dee;
+  --focus: #1e7cb3;
   --radius: 8px;
   --font: 'Nanum Myeongjo', 'AppleMyungjo', Georgia, serif;
   color-scheme: dark;
@@ -223,7 +223,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
   display: inline-grid; place-items: center; flex: none; margin-top: 2px;
 }
 .check:hover { border-color: var(--text-2); }
-.check.on { background: var(--check, #3084ff); border-color: var(--check, #3084ff); }
+.check.on { background: var(--check, #1e7cb3); border-color: var(--check, #1e7cb3); }
 .check svg { width: 12px; height: 12px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .clock { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .clock-ico { font-size: 11px; }
@@ -769,7 +769,7 @@ select.select:disabled { opacity: 0.5; cursor: default; }
 [data-test="text-color-brown"], [data-test="text-color-purple"], [data-test="text-color-pink"],
 [data-test="background-color-brown"], [data-test="background-color-purple"], [data-test="background-color-pink"] { display: none !important; }
 
-.note-blocks [data-content-type="checkListItem"] input[type="checkbox"] { accent-color: var(--check, #3084ff); }
+.note-blocks [data-content-type="checkListItem"] input[type="checkbox"] { accent-color: var(--check, #1e7cb3); }
 .palette-grid { display: grid; }
 .palette-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
 .palette-item .hex { margin-left: auto; font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--text-3); text-transform: none; }
@@ -1000,10 +1000,12 @@ select.select:disabled { opacity: 0.5; cursor: default; }
 .cell-editor .todo-carry .field-icon { width: 12px; height: 12px; }
 .cell-editor .todo-del { font-size: 14px; }
 .cell-editor .todo-carry + .todo-del, .cell-editor .todo-send + .todo-carry { margin-left: -6px; }
-.todo-send.on { color: var(--cyan); background: color-mix(in srgb, var(--cyan) 14%, transparent); }
+.todo-send.on { color: var(--cyan); }
 .todo-carry, .todo-del { flex: none; width: 24px; height: 24px; border-radius: 5px; display: grid; place-items: center; color: var(--text-3); }
-.todo-carry:hover, .todo-del:hover { background: var(--hover-2); color: var(--text); }
-.todo-carry.on { color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent); }
+.todo-carry:hover, .todo-del:hover { color: var(--text); }
+.todo-carry.on { color: var(--orange); }
+.todo-carry.on:hover { color: color-mix(in srgb, var(--orange) 60%, var(--text)); }
+.todo-send.on:hover { color: color-mix(in srgb, var(--cyan) 60%, var(--text)); }
 .todo-del { opacity: 0; font-size: 16px; }
 .todo-row:hover .todo-del { opacity: 1; }
 .todo-carry:not(.on) { opacity: 0; }

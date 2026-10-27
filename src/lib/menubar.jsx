@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { Icon } from '../components/icons.jsx'
 import { catMeta, elapsedSec, pauseRunning, resumePaused, startBlock, stopRunning } from '../components/TimeBlocks.jsx'
 import { getData } from './store.js'
-import { DEFAULT_PALETTE, rolloverMinute } from './schema.js'
+import { DEFAULT_MENUBAR_COLORS, rolloverMinute } from './schema.js'
 import { logicalToday, nowMinutes } from './time.js'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -75,7 +75,7 @@ export function useMenubar(data, onView) {
 
   useEffect(() => {
     if (!isTauri) return
-    const push = () => import('@tauri-apps/api/core').then(({ invoke }) => { const d = getData(); const m = d.settings.menubarColors || {}; invoke('tray_watch', { watch: watchOf(d), groups: groupsOf(d), colors: { green: m.stopwatch || DEFAULT_PALETTE.green, orange: m.timer || DEFAULT_PALETTE.orange } }) })
+    const push = () => import('@tauri-apps/api/core').then(({ invoke }) => { const d = getData(); const m = d.settings.menubarColors || {}; invoke('tray_watch', { watch: watchOf(d), groups: groupsOf(d), colors: { green: m.stopwatch || DEFAULT_MENUBAR_COLORS.stopwatch, orange: m.timer || DEFAULT_MENUBAR_COLORS.timer } }) })
     push()
     const t = setInterval(push, 30000)
     return () => clearInterval(t)

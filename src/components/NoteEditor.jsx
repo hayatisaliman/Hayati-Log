@@ -82,7 +82,7 @@ const theme = {
     menu: { text: '#f2f0f0', background: '#1d1d1d' },
     tooltip: { text: '#f2f0f0', background: '#262626' },
     hovered: { text: '#f2f0f0', background: '#2a2a2a' },
-    selected: { text: '#ffffff', background: '#3084ff' },
+    selected: { text: '#ffffff', background: '#1e7cb3' },
     disabled: { text: '#666666', background: '#1d1d1d' },
     shadow: 'rgba(0, 0, 0, 0.6)',
     border: '#333333',
