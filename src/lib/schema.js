@@ -78,7 +78,7 @@ const isLight = (hex) => { const [r, g, b] = rgb(hex); return 0.299 * r + 0.587 
 
 let applied = ''
 export function applyPalette(settings) {
-  const key = JSON.stringify([settings.palette, settings.noteColors, settings.noteBgColors, settings.checkColor, settings.memoColors])
+  const key = JSON.stringify([settings.palette, settings.noteColors, settings.noteBgColors, settings.checkColor, settings.memoColors, settings.menubarColors])
   if (key === applied) return
   applied = key
   Object.assign(PALETTE, DEFAULT_PALETTE, settings.palette || {})
@@ -97,6 +97,8 @@ export function applyPalette(settings) {
     root.setProperty(`--hlbg-${n}`, bg(to))
   }
   root.setProperty('--check', settings.checkColor || DEFAULT_CHECK_COLOR)
+  root.setProperty('--watch', settings.menubarColors?.stopwatch || DEFAULT_MENUBAR_COLORS.stopwatch)
+  root.setProperty('--timer', settings.menubarColors?.timer || DEFAULT_MENUBAR_COLORS.timer)
   const memos = { ...DEFAULT_MEMO_COLORS, ...(settings.memoColors || {}) }
   for (const n of MEMO_COLOR_NAMES) {
     root.setProperty(`--memo-${n}`, memos[n])

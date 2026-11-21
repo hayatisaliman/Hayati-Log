@@ -1,15 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { FieldIcon, Icon, IconPicker } from './icons.jsx'
-import { FIELD_TYPES, EDITABLE_TYPES, todoId, todosFromText, textToMixed } from '../lib/schema.js'
+import { FIELD_TYPES, EDITABLE_TYPES, todosFromText, textToMixed } from '../lib/schema.js'
 import { fmtClock } from '../lib/time.js'
 import { update, findField } from '../lib/store.js'
-import { CellView, CellEditor, InlineEditor, isInline, setCell } from './cells.jsx'
+import { CellView, CellEditor, InlineEditor, isInline, setCell, freshCopy, copyItems, pasteItems } from './cells.jsx'
 import { InlineHost, Popover, Menu } from './Popover.jsx'
 
 const READONLY = new Set(['weekday', 'week', 'tracked'])
 
-// freshCopy — copied to-dos get new ids and lose carry links
-const freshCopy = (v) => (Array.isArray(v) ? v.map((t) => (t && typeof t === 'object' && t.id ? { id: todoId(), text: t.text, ...(t.kind ? { kind: t.kind } : { done: !!t.done }) } : t)) : structuredClone(v ?? null))
+
+const LIST_TYPES = new Set(['todo', 'mixed'])
+// copyCell / pasteCell — copy/paste events on a selected checklist or note cell, appends on paste
+function copyCell(row, field, cd) {
+  return copyItems(Array.isArray(row.cells[field.id]) ? row.cells[field.id] : [], cd)
+}
+
+const pasteCell = (row, field, text) => pasteItems(row.id, field.id, field.type, text, true)
 
 export function Table({ data, rows, view, setView, onOpenBlocks, onNewRow, now, onDeleteRow, focusRow }) {
   const fields = data.fields.filter((f) => !f.hidden)
@@ -37,6 +43,18 @@ export function Table({ data, rows, view, setView, onOpenBlocks, onNewRow, now, 
     setSel({ row: focusRow.id, field: 'date' })
     wrapRef.current?.focus({ preventScroll: true })
   }, [focusRow])
+
+  const clipState = useRef(null)
+  clipState.current = !editing && !menu && !rowMenu && rowIndex >= 0 && LIST_TYPES.has(fields[fieldIndex]?.type) ? { row: rows[rowIndex], field: fields[fieldIndex] } : null
+  useEffect(() => {
+    const live = () => (document.activeElement === wrapRef.current ? clipState.current : null)
+    const before = (e) => { if (live()) e.preventDefault() }
+    const copy = (e) => { const c = live(); if (c && copyCell(c.row, c.field, e.clipboardData)) e.preventDefault() }
+    const paste = (e) => { const c = live(); if (!c) return; e.preventDefault(); pasteCell(c.row, c.field, e.clipboardData?.getData('text/plain')) }
+    const evs = [['beforecopy', before], ['beforepaste', before], ['copy', copy], ['paste', paste]]
+    for (const [n, f] of evs) document.addEventListener(n, f)
+    return () => { for (const [n, f] of evs) document.removeEventListener(n, f) }
+  }, [])
 
   useEffect(() => {
     if (!sel) return

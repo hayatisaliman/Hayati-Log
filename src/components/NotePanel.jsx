@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { DAY_NAMES, MONTHS, fmtClock } from '../lib/time.js'
 import { deleteNote, moveNote, patchNote } from '../lib/notes.js'
 import { Popover, Menu } from './Popover.jsx'
+import { Icon } from './icons.jsx'
 import { NoteEditor, blocksToText } from './NoteEditor.jsx'
 import { RichInput } from './FormatBar.jsx'
 import { VideoAutoplay, hasVideo } from './VideoBlock.jsx'
@@ -13,9 +14,12 @@ const fmtDate = (ts) => {
   return `${DAY_NAMES[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
 }
 const countWords = (t) => (t?.trim() ? t.trim().split(/\s+/).length : 0)
+const FS_DEFAULT = 15
+const FS_MIN = 12
+const FS_MAX = 22
 const fmtTime = (ts) => { const d = new Date(ts); return fmtClock(d.getHours() * 60 + d.getMinutes()) }
 
-export function NotePanel({ data, noteId, onClose, focusTitle, width, setWidth, toast }) {
+export function NotePanel({ data, noteId, onClose, focusTitle, width, setWidth, toast, full, setFull }) {
   const note = data.notes.find((n) => n.id === noteId)
   const [title, setTitle] = useState(note?.title || '')
   const [words, setWords] = useState(() => countWords(note?.body))
@@ -57,11 +61,14 @@ export function NotePanel({ data, noteId, onClose, focusTitle, width, setWidth, 
     window.addEventListener('pointerup', up)
   }
 
+  const fs = note.fontSize || FS_DEFAULT
+  const setFs = (v) => update((d) => { const n = d.notes.find((x) => x.id === note.id); if (!n) return; if (v === FS_DEFAULT) delete n.fontSize; else n.fontSize = v })
+
   const group = data.noteGroups.find((g) => g.id === note.group)
 
   return (
-    <aside className="note-panel" style={{ width }}>
-      <div className="note-resize" onPointerDown={startResize} />
+    <aside className={`note-panel ${full ? 'full' : ''}`} style={full ? undefined : { width }}>
+      {!full && <div className="note-resize" onPointerDown={startResize} />}
       <div className="note-top">
         <span className="note-crumb">{group ? group.name : 'Notes'}</span>
         <div className="grow" />
@@ -73,10 +80,11 @@ export function NotePanel({ data, noteId, onClose, focusTitle, width, setWidth, 
         )}
         <span className="note-meta num">{words} words</span>
         <button className="icon-btn" onClick={(e) => setMenu(e.currentTarget)}>⋯</button>
+        <button className="icon-btn" title={full ? 'Exit full width' : 'Full width'} onClick={() => setFull(!full)}><Icon name={full ? 'collapse' : 'expand'} size={14} weight={1.1} /></button>
         <button className="icon-btn" title="Close" onClick={() => { flush(); onClose() }}>✕</button>
       </div>
       <div className="note-scroll">
-        <article className="journal">
+        <article className="journal" style={{ '--note-fs': `${fs}px` }}>
           <div className="journal-date">{fmtDate(note.created)}</div>
           <RichInput
             inputRef={titleRef}
@@ -103,8 +111,15 @@ export function NotePanel({ data, noteId, onClose, focusTitle, width, setWidth, 
       </div>
       {menu && (
         <Popover anchor={menu} onClose={() => setMenu(null)} align="right" width={210}>
+          <div className="note-fs-row">
+            <span className="grow">Text size</span>
+            <button className="icon-btn" title="Smaller" disabled={fs <= FS_MIN} onClick={() => setFs(Math.max(FS_MIN, fs - 0.5))}>−</button>
+            <button className="note-fs-val num" title="Reset to default" onClick={() => setFs(FS_DEFAULT)}>{fs}</button>
+            <button className="icon-btn" title="Larger" disabled={fs >= FS_MAX} onClick={() => setFs(Math.min(FS_MAX, fs + 0.5))}>+</button>
+          </div>
+          <div className="menu-sep" />
           <Menu onPick={() => setMenu(null)} items={[
-            ...data.noteGroups.filter((g) => g.id !== note.group).map((g) => ({ icon: 'arrow-right', label: `Move to ${g.name}`, run: () => { flush(); moveNote(note.id, { group: g.id }) } })),
+            ...(data.noteGroups.some((g) => g.id !== note.group) ? [{ icon: 'arrow-right', label: 'Move to', sub: data.noteGroups.filter((g) => g.id !== note.group).map((g) => ({ label: g.name, run: () => { flush(); moveNote(note.id, { group: g.id }) } })) }] : []),
             ...(note.group ? [{ icon: 'arrow-out', label: 'Remove from group', run: () => { flush(); moveNote(note.id, { group: null }) } }] : []),
             '-',
             { icon: 'x', label: 'Delete note', danger: true, run: () => { pending.current = null; clearTimeout(timer.current); deleteNote(note.id); onClose(); toast?.(`Note deleted · ${MOD}Z to undo`) } },

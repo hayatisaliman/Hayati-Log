@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { COLORS, blockEnd, blockShares, wakeMinute } from '../lib/schema.js'
-import { fmtClock, fmtDuration, normalizeClock, nowMinutes, parseClock, parseDuration, toDate } from '../lib/time.js'
+import { COLORS, blockEnd, blockShares, todoId, wakeMinute } from '../lib/schema.js'
+import { addDays, fmtClock, fmtDuration, normalizeClock, nowMinutes, parseClock, parseDuration, toDate } from '../lib/time.js'
 import { update, findRow } from '../lib/store.js'
 import { Chip, SelectEditor } from './cells.jsx'
 import { Popover, Menu } from './Popover.jsx'
 import { useTip } from './Tip.jsx'
 import { Icon } from './icons.jsx'
+import { Toggle } from './Settings.jsx'
 
 const bid = () => `b-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
 
@@ -30,6 +31,12 @@ export function groupShares(data, b, dur) {
 
 const blockColor = (data, b) => COLORS[catMeta(data, b.cats?.[0]).color] || COLORS.gray
 
+// watchRow — row holding the live stopwatch: today, else yesterday while its End is empty
+export function watchRow(d, today) {
+  const rows = [d.rows.find((r) => r.date === today), d.rows.find((r) => r.date === addDays(today, -1) && r.cells.end == null)].filter(Boolean)
+  return rows.find((r) => r.blocks?.some((b) => b.end == null)) || rows.find((r) => r.blocks?.some((b) => b.paused)) || null
+}
+
 function editBlocks(rowId, fn) {
   update((d) => {
     let r = findRow(d, rowId)
@@ -37,17 +44,117 @@ function editBlocks(rowId, fn) {
       r = { id: rowId, date: rowId.slice(2), cells: {}, notes: '', blocks: [] }
       d.rows.push(r)
     }
-    if (r) fn(r, r.blocks)
+    if (r) fn(r, r.blocks, d)
   })
 }
 
-export function startBlock(rowId, catId, nowMin, text = '') {
+// blockSec — seconds a finished block ran, from its saved stopwatch seconds unless its times were edited since
+export function blockSec(b) {
+  const span = Math.max(0, b.end - b.start) * 60
+  return b.sec != null && Math.abs(b.sec - span) < 60 ? b.sec : span
+}
+
+const carryOf = (blocks, todo) => (todo ? blocks.reduce((n, b) => n + (b.todo === todo && b.end != null ? blockSec(b) : 0), 0) : 0)
+const closeBlock = (r, b, end) => { b.sec = Math.max(0, elapsedSec(r.date, b) - (b.carrySec || 0)); b.end = end }
+
+// findEntry — the checklist / note line with this id in a row's cells
+export function findEntry(r, id) {
+  for (const [field, v] of Object.entries(r?.cells || {})) if (Array.isArray(v)) { const i = v.findIndex((x) => x?.id === id); if (i >= 0) return { field, i, item: v[i] } }
+  return null
+}
+
+const listFields = (d) => d.fields.filter((f) => f.type === 'todo' || f.type === 'mixed')
+const syncFields = (d) => d.fields.filter((f) => f.type === 'todo' || f.type === 'mixed' || f.type === 'text')
+const blockLabel = (d, b) => b.text?.trim() || b.cats.map((c) => catMeta(d, c).name).join(' · ') || 'Untitled block'
+const textLines = (v) => (typeof v === 'string' && v ? v.split('\n') : [])
+
+// syncPlace — where a block's synced line sits: a checklist / note line, or a line in a text column
+export function syncPlace(r, b) {
+  if (b.syncText) return textLines(r.cells[b.syncText.field]).includes(b.syncText.line) ? { field: b.syncText.field, text: true } : null
+  const e = b.todo && findEntry(r, b.todo)
+  return e ? { field: e.field, item: e.item } : null
+}
+
+function takeOut(r, b) {
+  if (b.syncText) {
+    const { field, line } = b.syncText
+    const lines = textLines(r.cells[field])
+    const i = lines.indexOf(line)
+    if (i >= 0) lines.splice(i, 1)
+    if (lines.length) r.cells[field] = lines.join('\n')
+    else delete r.cells[field]
+    delete b.syncText
+    return { text: line }
+  }
+  const e = b.todo && findEntry(r, b.todo)
+  if (!e) return null
+  r.cells[e.field] = r.cells[e.field].filter((x) => x.id !== e.item.id)
+  if (!r.cells[e.field].length) delete r.cells[e.field]
+  delete b.todo
+  delete b.syncItem
+  return e.item
+}
+
+function putIn(d, r, b, field, kind, from) {
+  const type = d.fields.find((f) => f.id === field)?.type
+  const text = from?.text || blockLabel(d, b)
+  if (type === 'text') {
+    const lines = textLines(r.cells[field])
+    r.cells[field] = [...lines, text].join('\n')
+    b.syncText = { field, line: text }
+    return
+  }
+  const id = from?.id || todoId()
+  const { kind: _k, done, ...rest } = from?.id ? from : { id, text }
+  const k = type === 'todo' ? 'todo' : kind || (from?.kind === 'text' ? 'text' : 'todo')
+  const item = k === 'text' ? { ...rest, id, text, kind: 'text' } : { ...rest, id, text, done: !!done }
+  r.cells[field] = [...(Array.isArray(r.cells[field]) ? r.cells[field] : []), item]
+  b.todo = id
+  b.syncItem = id
+}
+
+// setSync — Sync log on: adds the block as a line in a month table column; off: removes the line it added
+function setSync(rowId, blockId, on) {
+  editBlocks(rowId, (r, blocks, d) => {
+    const b = blocks.find((x) => x.id === blockId)
+    if (!b) return
+    if (!on) {
+      if (b.syncText || b.syncItem) takeOut(r, b)
+      else if (b.todo) { b.offTodo = b.todo; delete b.todo }
+      return
+    }
+    if (b.offTodo && findEntry(r, b.offTodo)) { b.todo = b.offTodo; delete b.offTodo; return }
+    delete b.offTodo
+    const f = listFields(d).find((x) => x.id === 'plan') || syncFields(d)[0]
+    if (f) putIn(d, r, b, f.id)
+  })
+}
+
+// moveSync — changes the synced line's type (checkbox / text note) or column
+function moveSync(rowId, blockId, { field, kind }) {
+  editBlocks(rowId, (r, blocks, d) => {
+    const b = blocks.find((x) => x.id === blockId)
+    const at = b && syncPlace(r, b)
+    if (!at) return
+    const to = field || at.field
+    const owned = b.syncText || b.syncItem
+    const from = takeOut(r, b)
+    putIn(d, r, b, to, kind, from)
+    if (!owned) delete b.syncItem
+  })
+}
+
+export function startBlock(rowId, catId, nowMin, text = '', todo = null) {
   let id = bid()
-  editBlocks(rowId, (r, blocks) => {
+  editBlocks(rowId, (r, blocks, d) => {
+    for (const o of d.rows) if (o !== r) for (const b of o.blocks || []) { if (b.end == null) closeBlock(o, b, Math.max(b.start, nowMinutes(o.date))); delete b.paused; delete b.pausedSec }
     const open = blocks.find((b) => b.end == null && nowMin - b.start < 1)
-    if (open) { open.cats = catId ? [catId] : []; open.text = text; id = open.id; return }
-    for (const b of blocks) { if (b.end == null && b.start <= nowMin) b.end = nowMin; delete b.paused; delete b.pausedSec }
-    blocks.push({ id, start: nowMin, startedAt: Date.now(), end: null, cats: catId ? [catId] : [], text, plan: null })
+    if (open) { open.cats = catId ? [catId] : []; open.text = text; if (todo) open.todo = todo; else delete open.todo; const carry = carryOf(blocks, todo); if (carry) open.carrySec = carry; else delete open.carrySec; id = open.id; return }
+    for (const b of blocks) { if (b.end == null && b.start <= nowMin) closeBlock(r, b, nowMin); delete b.paused; delete b.pausedSec }
+    const carry = carryOf(blocks, todo)
+    const item = todo && findEntry(r, todo)?.item
+    const cats = catId ? [catId] : item?.cats ? [...item.cats] : []
+    blocks.push({ id, start: nowMin, startedAt: Date.now(), end: null, cats, text, plan: item?.plan ?? null, ...(todo ? { todo } : {}), ...(carry ? { carrySec: carry } : {}) })
     if (r.cells.start == null) r.cells.start = nowMin
   })
   return id
@@ -55,7 +162,7 @@ export function startBlock(rowId, catId, nowMin, text = '') {
 
 export function stopRunning(rowId, nowMin, endDay) {
   editBlocks(rowId, (r, blocks) => {
-    for (const b of blocks) { if (b.end == null) b.end = Math.max(b.start, nowMin); delete b.paused; delete b.pausedSec }
+    for (const b of blocks) { if (b.end == null) closeBlock(r, b, Math.max(b.start, nowMin)); delete b.paused; delete b.pausedSec }
     if (endDay) r.cells.end = nowMin
   })
 }
@@ -70,7 +177,7 @@ export function elapsedSec(day, b) {
 
 export function pauseRunning(rowId, nowMin) {
   editBlocks(rowId, (r, blocks) => {
-    for (const b of blocks) if (b.end == null) { b.pausedSec = elapsedSec(r.date, b); b.end = Math.max(b.start, nowMin); b.paused = true }
+    for (const b of blocks) if (b.end == null) { b.pausedSec = elapsedSec(r.date, b); closeBlock(r, b, Math.max(b.start, nowMin)); b.paused = true }
   })
 }
 
@@ -78,7 +185,7 @@ export function resumePaused(rowId, nowMin) {
   editBlocks(rowId, (r, blocks) => {
     const p = blocks.find((b) => b.paused)
     if (!p) return
-    blocks.push({ id: bid(), start: nowMin, startedAt: Date.now(), end: null, cats: [...p.cats], text: p.text, plan: null, carrySec: p.pausedSec || 0 })
+    blocks.push({ id: bid(), start: nowMin, startedAt: Date.now(), end: null, cats: [...p.cats], text: p.text, plan: null, carrySec: p.pausedSec || 0, ...(p.todo ? { todo: p.todo } : {}) })
     delete p.paused
     delete p.pausedSec
   })
@@ -152,7 +259,7 @@ export function TimeBlocks({ row, data, isToday, nowMin, addRef, compact }) {
       {blocks.length > 0 && (
         <div className="tb-list">
           <div className="tb-row tb-headrow">
-            <span /><span>Time</span><span>Length</span><span>What</span><span>Activity / reason</span><span>Plan</span><span />
+            <span /><span>Time</span><span>Length</span><span>Category</span><span>Activity / reason</span><span>Plan</span><span>Sync log</span><span />
           </div>
           {blocks.map((b, i) => (
             <BlockRow
@@ -162,6 +269,7 @@ export function TimeBlocks({ row, data, isToday, nowMin, addRef, compact }) {
               data={data}
               rowId={row.id}
               boundary={boundary}
+              row={row}
               isRunning={running?.id === b.id}
               autoFocus={focusId === b.id}
               onPickCats={(el) => setCatPick({ id: b.id, el })}
@@ -239,7 +347,7 @@ function AutoText({ value, onCommit, placeholder, autoFocus }) {
   )
 }
 
-function BlockRow({ b, dur, data, rowId, boundary, isRunning, autoFocus, onPickCats }) {
+function BlockRow({ b, dur, data, row, rowId, boundary, isRunning, autoFocus, onPickCats }) {
   const [menu, setMenu] = useState(null)
   const set = (patch) => editBlocks(rowId, (r) => Object.assign(r.blocks.find((x) => x.id === b.id), patch))
   const [planText, setPlanText] = useState(b.plan == null ? '' : fmtDuration(b.plan))
@@ -263,7 +371,7 @@ function BlockRow({ b, dur, data, rowId, boundary, isRunning, autoFocus, onPickC
         <span className="tb-time-line">
           <TimeInput value={b.start} boundary={boundary} onCommit={(m) => m != null && set({ start: m })} />
           <span className="arrow">→</span>
-          {isRunning ? <span className="now-tag">now</span> : <TimeInput value={b.end} boundary={boundary} placeholder="end" onCommit={(m) => set({ end: m == null ? null : Math.max(m, b.start) })} />}
+          {isRunning ? <span className="now-tag">now</span> : <TimeInput value={b.end} boundary={boundary} placeholder="End" onCommit={(m) => set({ end: m == null ? null : Math.max(m, b.start) })} />}
         </span>
         {split && <span className="tb-total num">{fmtDuration(dur)}</span>}
       </span>
@@ -273,14 +381,24 @@ function BlockRow({ b, dur, data, rowId, boundary, isRunning, autoFocus, onPickC
         </span>
       ) : <span className="tb-dur num">{dur != null ? fmtDuration(dur) : '—'}</span>}
       <span className={`tb-cats ${split ? 'stacked' : ''}`} onClick={(e) => onPickCats(e.currentTarget)}>
-        {b.cats.length ? b.cats.map((c) => { const m = catMeta(data, c); return <span key={c} className="tb-cat-line"><Chip color={m.color}><CatIcon c={m} />{m.name}</Chip></span> }) : <span className="placeholder">+ category</span>}
+        {b.cats.length ? b.cats.map((c) => { const m = catMeta(data, c); return <span key={c} className="tb-cat-line"><Chip color={m.color}><CatIcon c={m} />{m.name}</Chip></span> }) : <span className="placeholder">+ Category</span>}
       </span>
-      <AutoText value={b.text} placeholder="" autoFocus={autoFocus} onCommit={(text) => set({ text })} />
+      <AutoText value={b.text} placeholder="" autoFocus={autoFocus} onCommit={(text) => editBlocks(rowId, (r) => {
+        const x = r.blocks.find((y) => y.id === b.id)
+        x.text = text
+        const e = x.syncItem && findEntry(r, x.syncItem)
+        if (e && text.trim()) e.item.text = text.trim()
+        if (x.syncText && text.trim()) {
+          const lines = textLines(r.cells[x.syncText.field])
+          const i = lines.indexOf(x.syncText.line)
+          if (i >= 0) { lines[i] = text.trim(); r.cells[x.syncText.field] = lines.join('\n'); x.syncText.line = text.trim() }
+        }
+      })} />
       <span className="tb-plan">
         <input
           className={`plan-input ${delta != null && delta <= 5 ? 'ok' : ''}`}
           value={planText}
-          placeholder="plan"
+          placeholder="Plan"
           onChange={(e) => setPlanText(e.target.value)}
           onBlur={() => { const p = parseDuration(planText); if (!planText.trim()) set({ plan: null }); else if (p != null) { set({ plan: p }); setPlanText(fmtDuration(p)) } else setPlanText(b.plan == null ? '' : fmtDuration(b.plan)) }}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
@@ -289,6 +407,7 @@ function BlockRow({ b, dur, data, rowId, boundary, isRunning, autoFocus, onPickC
           <span className={`delta ${delta <= 5 ? 'ok' : 'over'}`}>{delta <= 5 ? '✓' : `+${fmtDuration(delta)}`}</span>
         )}
       </span>
+      <SyncCell b={b} row={row} data={data} rowId={rowId} />
       <button className="row-more" onClick={(e) => setMenu(e.currentTarget)}>⋯</button>
       {menu && (
         <Popover anchor={menu} onClose={() => setMenu(null)} align="right" width={180}>
@@ -301,6 +420,31 @@ function BlockRow({ b, dur, data, rowId, boundary, isRunning, autoFocus, onPickC
         </Popover>
       )}
     </div>
+  )
+}
+
+// SyncCell — Sync log toggle and where the synced line goes in the month table
+function SyncCell({ b, row, data, rowId }) {
+  const [menu, setMenu] = useState(null)
+  const at = syncPlace(row, b)
+  const type = data.fields.find((f) => f.id === at?.field)?.type
+  const isText = at?.text || at?.item?.kind === 'text'
+  return (
+    <span className="tb-sync">
+      <Toggle on={!!at} onChange={(v) => setSync(rowId, b.id, v)} />
+      {at && <button className="row-more tb-sync-more" title="Sync options" onClick={(ev) => setMenu(ev.currentTarget)}>⋯</button>}
+      {menu && at && (
+        <Popover anchor={menu} onClose={() => setMenu(null)} align="right" width={170}>
+          <Menu onPick={() => setMenu(null)} items={[
+            { icon: isText ? 'text' : 'checkbox', label: 'Type', sub: [
+              ...(type !== 'text' ? [{ icon: 'checkbox', label: 'Checkbox', active: !isText, run: () => moveSync(rowId, b.id, { kind: 'todo' }) }] : []),
+              ...(type !== 'todo' ? [{ icon: 'text', label: 'Text note', active: isText, run: () => type === 'mixed' && moveSync(rowId, b.id, { kind: 'text' }) }] : []),
+            ] },
+            { icon: 'layers', label: 'Column', sub: syncFields(data).map((f) => ({ label: f.name, active: f.id === at.field, run: () => f.id !== at.field && moveSync(rowId, b.id, { field: f.id }) })) },
+          ]} />
+        </Popover>
+      )}
+    </span>
   )
 }
 

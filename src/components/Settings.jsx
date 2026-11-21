@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { FieldIcon, Icon, IconPicker, isEmoji } from './icons.jsx'
-import { COLORS, COLOR_NAMES, FIELD_TYPES, averageCycle, cycleHistory, cycleLen, periodLen, DEFAULT_PALETTE, NOTE_COLOR_NAMES, DEFAULT_NOTE_COLORS, hueName, ACCENT_USES, noteBgDefault, DEFAULT_CHECK_COLOR, MEMO_COLOR_NAMES, DEFAULT_MEMO_COLORS, DEFAULT_NOTE_BG_COLORS, DEFAULT_MENUBAR_COLORS } from '../lib/schema.js'
+import { Icon, IconPicker, isEmoji } from './icons.jsx'
+import { COLORS, COLOR_NAMES, averageCycle, cycleHistory, cycleLen, periodLen, DEFAULT_PALETTE, NOTE_COLOR_NAMES, DEFAULT_NOTE_COLORS, hueName, ACCENT_USES, noteBgDefault, DEFAULT_CHECK_COLOR, MEMO_COLOR_NAMES, DEFAULT_MEMO_COLORS, DEFAULT_NOTE_BG_COLORS, DEFAULT_MENUBAR_COLORS } from '../lib/schema.js'
 import { ColorSwatch } from './ColorPicker.jsx'
 import { Chip } from './cells.jsx'
 import { DatePicker } from './DatePicker.jsx'
 import { CatIcon } from './TimeBlocks.jsx'
 import { DAY_NAMES, fmtClock, isoOf, longDate } from '../lib/time.js'
-import { update, replaceData, useStatus, findField, listBackups, readBackup, exportData, MOD } from '../lib/store.js'
+import { update, replaceData, useStatus, listBackups, readBackup, exportData, MOD } from '../lib/store.js'
 import { monthMarkdown, quarterMarkdown } from './reportMarkdown.js'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -199,7 +199,7 @@ export function Settings({ data, toast, now }) {
       </section>
 
       <section className="card">
-        <div className="card-head"><h3>Time-Block Categories</h3><span className="section-meta">Quick-start buttons and What column options. Drag to reorder.</span></div>
+        <div className="card-head"><h3>Time-Block Categories</h3><span className="section-meta">Quick-start buttons and Category column options. Drag to reorder.</span></div>
         <div className="set-row start-label-row">
           <span className="set-label">Sidebar start text</span>
           <input className="inline-edit grow" defaultValue={s.startLabel || 'Bismillah'} placeholder="Bismillah" onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
@@ -254,22 +254,11 @@ export function Settings({ data, toast, now }) {
         )}
       </section>
 
-      <section className="card">
-        <div className="card-head"><h3>Properties</h3><span className="section-meta">Show or hide columns. Drag headers in the table to reorder.</span></div>
-        {data.fields.map((f) => (
-          <div key={f.id} className="set-row prop-row">
-            <IconButton field={f} />
-            <span className="grow">{f.name} <span className="muted">· {FIELD_TYPES[f.type]?.label}</span></span>
-            {!f.primary && <Toggle on={!f.hidden} onChange={(on) => update((d) => { findField(d, f.id).hidden = !on })} />}
-          </div>
-        ))}
-      </section>
-
       <MenuBarCard />
 
       <section className="card">
-        <div className="card-head"><h3>Export Data</h3><span className="section-meta">Auto backup daily · last 14 kept</span></div>
-        <p className="help">Everything lives in one plain JSON file on this Mac. The app automatically backs it up into <code>backups/</code> once a day and keeps the last 14 days.</p>
+        <div className="card-head"><h3>Export Data</h3><span className="section-meta">Auto backup daily · last 7 kept</span></div>
+        <p className="help">Everything lives in one plain JSON file on this Mac. The app automatically backs it up into <code>backups/</code> once a day and keeps the last 7 days.</p>
         <code className="path">{status.file || '—'}</code>
         <div className="inline-form">
           <button className="btn" onClick={exportJson}>Export JSON</button>
@@ -415,16 +404,6 @@ export function Toggle({ on, onChange }) {
     <button role="switch" aria-checked={on} className={`toggle ${on ? 'on' : ''}`} onClick={() => onChange(!on)}>
       <span className="toggle-knob" />
     </button>
-  )
-}
-
-function IconButton({ field }) {
-  const [el, setEl] = useState(null)
-  return (
-    <>
-      <button className="icon-btn" title="Change icon" onClick={(e) => setEl(e.currentTarget)}><FieldIcon type={field.type} icon={field.icon} /></button>
-      {el && <IconPicker anchor={el} value={field.icon} onClose={() => setEl(null)} onPick={(icon) => update((d) => { const f = findField(d, field.id); if (icon) f.icon = icon; else delete f.icon })} />}
-    </>
   )
 }
 

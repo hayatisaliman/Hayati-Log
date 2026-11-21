@@ -8,7 +8,7 @@ const SUPPORT = path.join(os.homedir(), 'Library', 'Application Support')
 export const DATA_DIR = [path.join(SUPPORT, 'hayati.log'), path.join(SUPPORT, 'com.hayati.report')].find((d) => fs.existsSync(d)) || path.join(SUPPORT, 'hayati.log')
 const DATA_FILE = path.join(DATA_DIR, 'report.json')
 const SANDBOX_FILE = path.join(DATA_DIR, 'report.sandbox.json')
-const KEEP_BACKUPS = 14
+const KEEP_BACKUPS = 7
 
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
 const hostOf = (h) => String(h || '').replace(/:\d+$/, '').toLowerCase()
@@ -25,9 +25,9 @@ export function backupAndWrite(json, day) {
   const backup = path.join(dir, `report-${day}.json`)
   if (fs.existsSync(DATA_FILE) && !fs.existsSync(backup)) {
     fs.copyFileSync(DATA_FILE, backup)
-    const all = fs.readdirSync(dir).filter((f) => f.startsWith('report-')).sort()
-    for (const f of all.slice(0, Math.max(0, all.length - KEEP_BACKUPS))) fs.unlinkSync(path.join(dir, f))
   }
+  const all = fs.readdirSync(dir).filter((f) => f.startsWith('report-')).sort()
+  for (const f of all.slice(0, Math.max(0, all.length - KEEP_BACKUPS))) fs.unlinkSync(path.join(dir, f))
   const tmp = DATA_FILE + '.tmp'
   fs.writeFileSync(tmp, json, 'utf8')
   fs.renameSync(tmp, DATA_FILE)

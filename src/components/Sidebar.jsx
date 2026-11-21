@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MONTHS, fmtClock, longDate, monthKey, nowMinutes } from '../lib/time.js'
 import { getData, update } from '../lib/store.js'
+import { plainText } from '../lib/richText.js'
 import { createGroup, createNote, deleteGroup, deleteNote, moveGroup, moveNote, noteTitle, patchGroup, patchNote } from '../lib/notes.js'
-import { catMeta, elapsedSec, pauseRunning, resumePaused, startBlock, stopRunning } from './TimeBlocks.jsx'
+import { catMeta, elapsedSec, pauseRunning, resumePaused, startBlock, stopRunning, watchRow } from './TimeBlocks.jsx'
 import { Popover, Menu } from './Popover.jsx'
 import { BrandMark, Icon, IconPicker } from './icons.jsx'
 import { weeklyMonths } from './WeeklyPlan.jsx'
@@ -70,8 +71,9 @@ export function Sidebar({ data, view, setView, onWeekMonth, month, setMonth, now
   }
 
   const todayRow = data.rows.find((r) => r.date === now.today)
-  const running = todayRow?.blocks.find((b) => b.end == null)
-  const paused = running ? null : todayRow?.blocks.find((b) => b.paused)
+  const liveRow = watchRow(data, now.today)
+  const running = liveRow?.blocks.find((b) => b.end == null)
+  const paused = running ? null : liveRow?.blocks.find((b) => b.paused)
   const active = running || paused
   const [watchMenu, setWatchMenu] = useState(null)
   const [startMenu, setStartMenu] = useState(null)
@@ -163,8 +165,8 @@ export function Sidebar({ data, view, setView, onWeekMonth, month, setMonth, now
       <div className="side-bottom">
         {active && (
           <div className="side-running" onClick={() => setView('blocks')}>
-            <span className="side-running-label">{active.cats.map((c) => { const m = catMeta(data, c); return `${m.emoji} ${m.name}` }).join(' · ') || 'Running block'}</span>
-            <Stopwatch day={now.today} block={active} onClick={(e) => { e.stopPropagation(); setWatchMenu(e.currentTarget) }} />
+            <span className="side-running-label">{active.cats.map((c) => { const m = catMeta(data, c); return `${m.emoji} ${m.name}`.trim() }).join(' · ') || plainText(active.text || '').trim() || 'Running block'}</span>
+            <Stopwatch day={liveRow?.date} block={active} onClick={(e) => { e.stopPropagation(); setWatchMenu(e.currentTarget) }} />
           </div>
         )}
         {!active && (
@@ -182,9 +184,9 @@ export function Sidebar({ data, view, setView, onWeekMonth, month, setMonth, now
           <Popover anchor={watchMenu} onClose={() => setWatchMenu(null)} align="right" width={150}>
             <Menu onPick={() => setWatchMenu(null)} items={[
               running
-                ? { icon: 'pause', label: 'Pause', run: () => pauseRunning(todayRow.id, nowMinutes(now.today)) }
-                : { icon: 'play', label: 'Resume', run: () => resumePaused(todayRow.id, nowMinutes(now.today)) },
-              { icon: 'stop', label: 'Stop', run: () => stopRunning(todayRow.id, nowMinutes(now.today)) },
+                ? { icon: 'pause', label: 'Pause', run: () => pauseRunning(liveRow.id, nowMinutes(liveRow.date)) }
+                : { icon: 'play', label: 'Resume', run: () => resumePaused(liveRow.id, nowMinutes(liveRow.date)) },
+              { icon: 'stop', label: 'Stop', run: () => stopRunning(liveRow.id, nowMinutes(liveRow.date)) },
             ]} />
           </Popover>
         )}

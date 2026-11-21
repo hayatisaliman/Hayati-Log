@@ -27,8 +27,8 @@ tauri-plugin-single-instance = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSWindow", "NSPanel", "NSGraphics", "NSAttributedString", "NSColor", "NSFont", "NSFontDescriptor", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSView"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSProcessInfo", "NSString", "NSAttributedString", "NSDictionary"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSWindow", "NSPanel", "NSGraphics", "NSAttributedString", "NSColor", "NSFont", "NSFontDescriptor", "NSStatusItem", "NSStatusBarButton", "NSButton", "NSControl", "NSView", "NSShadow", "objc2-core-foundation"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSProcessInfo", "NSString", "NSAttributedString", "NSDictionary", "NSGeometry"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }

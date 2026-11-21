@@ -70,13 +70,48 @@ export function Menu({ items, onPick }) {
   return (
     <div className="menu">
       {clean.map((it, i) =>
-        it === '-' ? <div key={i} className="menu-sep" /> : (
+        it === '-' ? <div key={i} className="menu-sep" /> : it.sub ? <SubMenuItem key={i} it={it} onPick={onPick} /> : (
           <button key={i} className={`menu-item ${it.danger ? 'danger' : ''} ${it.active ? 'active' : ''}`} onClick={() => { it.run?.(); onPick?.() }}>
             {it.icon && <span className="menu-icon">{typeof it.icon === 'string' ? <Icon name={it.icon} size={15} /> : it.icon}</span>}
             <span>{it.label}</span>
             {it.hint && <span className="menu-hint">{it.hint}</span>}
           </button>
         ),
+      )}
+    </div>
+  )
+}
+
+// SubMenuItem — { label, sub: [items] }, opens beside the menu on hover
+function SubMenuItem({ it, onPick }) {
+  const ref = useRef(null)
+  const subRef = useRef(null)
+  const timer = useRef(null)
+  const [pos, setPos] = useState(null)
+  const show = () => { clearTimeout(timer.current); if (!pos) setPos({ left: 0, top: 0, hidden: true }) }
+  const hide = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setPos(null), 180) }
+  useEffect(() => () => clearTimeout(timer.current), [])
+  useLayoutEffect(() => {
+    if (!pos?.hidden || !ref.current || !subRef.current) return
+    const r = ref.current.closest('.popover')?.getBoundingClientRect() || ref.current.getBoundingClientRect()
+    const row = ref.current.getBoundingClientRect()
+    const w = subRef.current.offsetWidth
+    const h = subRef.current.offsetHeight
+    const left = r.right + 4 + w <= window.innerWidth - 8 ? r.right + 4 : Math.max(8, r.left - 4 - w)
+    const top = Math.max(8, Math.min(row.top - 5, window.innerHeight - 8 - h))
+    setPos({ left, top })
+  }, [pos])
+  return (
+    <div ref={ref} onMouseEnter={show} onMouseLeave={hide}>
+      <button className={`menu-item ${pos ? 'open' : ''}`} onClick={show}>
+        {it.icon && <span className="menu-icon">{typeof it.icon === 'string' ? <Icon name={it.icon} size={15} /> : it.icon}</span>}
+        <span>{it.label}</span>
+        <span className="menu-hint"><Icon name="chevron" size={12} /></span>
+      </button>
+      {pos && (
+        <div ref={subRef} className="popover submenu" style={{ left: pos.left, top: pos.top, opacity: pos.hidden ? 0 : 1 }}>
+          <Menu items={it.sub} onPick={onPick} />
+        </div>
       )}
     </div>
   )

@@ -44,6 +44,7 @@ export default function App() {
   const [blocksDate, setBlocksDate] = useState(now.today)
   const [focusRow, setFocusRow] = useState(null)
   const [note, setNote] = useState(null)
+  const [noteFull, setNoteFull] = useState(false)
   const [noteWidth, setNoteWidth] = useState(() => { try { return +localStorage.getItem('hr.noteWidth') || 560 } catch { return 560 } })
   const searchRef = useRef(null)
   const [tableView, setTableView] = useState({ sort: { field: 'date', dir: 'asc' }, filters: [], search: '' })
@@ -140,7 +141,7 @@ export default function App() {
       <Sidebar data={data} view={view} setView={setView} onWeekMonth={(m) => { setView('weekly'); setWeekFocus({ month: m, t: Date.now() }) }} month={month} setMonth={setMonth} now={now} status={status}
         onGoToDay={goToDay} openNoteId={noteOpen ? note.id : null} onOpenNote={openNote} searchRef={searchRef} />
 
-      <main className="main">
+      <main className="main" hidden={noteOpen && noteFull}>
         <div className="drag-region top" data-tauri-drag-region />
         {view === 'table' && (
           <div className="table-view">
@@ -163,7 +164,7 @@ export default function App() {
         {view === 'settings' && <Settings data={data} toast={toast} now={now} />}
       </main>
 
-      {noteOpen && <NotePanel key={note.id} data={data} noteId={note.id} focusTitle={note.fresh} onClose={() => setNote(null)} width={Math.max(360, Math.min(noteWidth, window.innerWidth - 232 - 420))} setWidth={setNoteWidth} toast={toast} />}
+      {noteOpen && <NotePanel key={note.id} data={data} noteId={note.id} focusTitle={note.fresh} onClose={() => setNote(null)} width={Math.max(360, Math.min(noteWidth, window.innerWidth - 232 - 420))} setWidth={setNoteWidth} toast={toast} full={noteFull} setFull={setNoteFull} />}
 
       <FormatBar />
 

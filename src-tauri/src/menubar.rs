@@ -396,14 +396,18 @@ fn hex(color: &str) -> Option<(f64, f64, f64)> {
 #[cfg(target_os = "macos")]
 fn paint_title<R: Runtime>(tray: &TrayIcon<R>, text: String, (r, g, b): (f64, f64, f64)) {
     use objc2::{rc::Retained, runtime::AnyObject, MainThreadMarker};
-    use objc2_app_kit::{NSColor, NSFont, NSFontAttributeName, NSForegroundColorAttributeName};
-    use objc2_foundation::{NSAttributedString, NSDictionary, NSString};
+    use objc2_app_kit::{NSColor, NSFont, NSFontAttributeName, NSForegroundColorAttributeName, NSShadow, NSShadowAttributeName};
+    use objc2_foundation::{NSAttributedString, NSDictionary, NSSize, NSString};
     let _ = tray.with_inner_tray_icon(move |t| {
         let (Some(item), Some(mtm)) = (t.ns_status_item(), MainThreadMarker::new()) else { return };
         let Some(button) = item.button(mtm) else { return };
         let color = NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, 1.0);
-        let mut keys = vec![unsafe { NSForegroundColorAttributeName }];
-        let mut vals: Vec<Retained<AnyObject>> = vec![color.into()];
+        let shadow = NSShadow::new();
+        shadow.setShadowColor(Some(&NSColor::colorWithSRGBRed_green_blue_alpha(0.0, 0.0, 0.0, 0.55)));
+        shadow.setShadowOffset(NSSize::new(0.0, -0.5));
+        shadow.setShadowBlurRadius(1.5);
+        let mut keys = vec![unsafe { NSForegroundColorAttributeName }, unsafe { NSShadowAttributeName }];
+        let mut vals: Vec<Retained<AnyObject>> = vec![color.into(), shadow.into()];
         if let Some(font) = button.font() {
             keys.push(unsafe { NSFontAttributeName });
             vals.push(NSFont::monospacedDigitSystemFontOfSize_weight(font.pointSize(), 0.0).into());

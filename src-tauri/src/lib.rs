@@ -5,7 +5,7 @@ mod menubar;
 #[cfg(windows)]
 mod taskbar;
 
-const KEEP_BACKUPS: usize = 14;
+const KEEP_BACKUPS: usize = 7;
 const MEDIA_GRACE: Duration = Duration::from_secs(24 * 60 * 60);
 const OLD_DATA_DIR: &str = "com.hayati.report";
 
@@ -79,17 +79,17 @@ fn save_data(app: tauri::AppHandle, json: String, day: String) -> Result<(), Str
     let backup = backups.join(format!("report-{day}.json"));
     if file.exists() && !backup.exists() {
         fs::copy(&file, &backup).map_err(|e| e.to_string())?;
-        let mut all: Vec<_> = fs::read_dir(&backups)
-            .map_err(|e| e.to_string())?
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.file_name().map_or(false, |n| n.to_string_lossy().starts_with("report-")))
-            .collect();
-        all.sort();
-        if all.len() > KEEP_BACKUPS {
-            for p in &all[..all.len() - KEEP_BACKUPS] {
-                let _ = fs::remove_file(p);
-            }
+    }
+    let mut all: Vec<_> = fs::read_dir(&backups)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.file_name().map_or(false, |n| n.to_string_lossy().starts_with("report-")))
+        .collect();
+    all.sort();
+    if all.len() > KEEP_BACKUPS {
+        for p in &all[..all.len() - KEEP_BACKUPS] {
+            let _ = fs::remove_file(p);
         }
     }
     let tmp = dir.join("report.json.tmp");

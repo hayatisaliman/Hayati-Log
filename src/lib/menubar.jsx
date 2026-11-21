@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Icon } from '../components/icons.jsx'
-import { catMeta, elapsedSec, pauseRunning, resumePaused, startBlock, stopRunning } from '../components/TimeBlocks.jsx'
+import { catMeta, elapsedSec, pauseRunning, resumePaused, startBlock, stopRunning, watchRow } from '../components/TimeBlocks.jsx'
 import { getData } from './store.js'
 import { DEFAULT_MENUBAR_COLORS, rolloverMinute } from './schema.js'
 import { logicalToday, nowMinutes } from './time.js'
@@ -37,7 +37,7 @@ const clip = (t, n) => (t.length > n ? `${t.slice(0, n - 1)}…` : t)
 
 function watchOf(d) {
   const day = logicalToday(rolloverMinute(d))
-  const row = d.rows.find((r) => r.date === day)
+  const row = watchRow(d, day)
   const b = row?.blocks.find((x) => x.end == null) || row?.blocks.find((x) => x.paused)
   if (!b) return null
   const label = b.cats.length ? b.cats.map((c) => { const m = catMeta(d, c); return `${m.emoji} ${m.name}`.trim() }).join(' · ') : b.text || 'Untitled block'
@@ -61,12 +61,13 @@ export function useMenubar(data, onView) {
         const d = getData()
         const day = logicalToday(rolloverMinute(d))
         const row = d.rows.find((r) => r.date === day)
-        const min = nowMinutes(day)
-        if (a.type === 'start') startBlock(row?.id || `r-${day}`, a.cat || null, min, a.text || '')
+        const live = watchRow(d, day)
+        const lmin = live && nowMinutes(live.date)
+        if (a.type === 'start') startBlock(row?.id || `r-${day}`, a.cat || null, nowMinutes(day), a.text || '')
         else if (a.type === 'view') viewRef.current(a.view)
-        else if (row && a.type === 'pause') pauseRunning(row.id, min)
-        else if (row && a.type === 'resume') resumePaused(row.id, min)
-        else if (row && a.type === 'stop') stopRunning(row.id, min)
+        else if (live && a.type === 'pause') pauseRunning(live.id, lmin)
+        else if (live && a.type === 'resume') resumePaused(live.id, lmin)
+        else if (live && a.type === 'stop') stopRunning(live.id, lmin)
       })
       invoke('tray_icons', { icons: await Promise.all(TRAY_ICONS.map((n) => rasterize(n))) })
     })

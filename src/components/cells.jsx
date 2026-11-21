@@ -1,6 +1,8 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { COLORS, COLOR_NAMES, computedValue, newRow, todoId, cycleInfo, cycleLen, setCycleDay, togglePeriodStart, togglePeriodEnd, wakeMinute, todoAge } from '../lib/schema.js'
-import { addDays, fmtClock, fmtDuration, isNight, normalizeClock, parseClock, toDate, weekOfMonth, DAY_SHORT } from '../lib/time.js'
+import { COLORS, COLOR_NAMES, computedValue, newRow, todoId, cycleInfo, setCycleDay, togglePeriodStart, togglePeriodEnd, wakeMinute, todoAge, rolloverMinute, cellText, textToMixed, todosFromText } from '../lib/schema.js'
+import { addDays, fmtClock, fmtDuration, isNight, logicalToday, nowMinutes, normalizeClock, parseClock, parseDuration, toDate, weekOfMonth, DAY_SHORT } from '../lib/time.js'
+import { plainText } from '../lib/richText.js'
+import { CatIcon, blockSec, catMeta, resumePaused, startBlock, stopRunning } from './TimeBlocks.jsx'
 import { update, findRow, findField, useData as useDataSnapshot } from '../lib/store.js'
 import { RichInput, RichText } from './FormatBar.jsx'
 import { InlineHost, Popover } from './Popover.jsx'
@@ -35,6 +37,33 @@ export function ClockText({ min }) {
       {fmtClock(min, { compact: true })}
     </span>
   )
+}
+
+// freshCopy — copied to-dos get new ids and lose carry links
+export const freshCopy = (v) => (Array.isArray(v) ? v.map((t) => (t && typeof t === 'object' && t.id ? { id: todoId(), text: t.text, ...(t.kind ? { kind: t.kind } : { done: !!t.done }) } : t)) : structuredClone(v ?? null))
+
+let listClip = null
+
+// copyItems / pasteItems — shared multi-row clipboard for checklist and note cells
+export function copyItems(items, cd) {
+  if (!items.length) return false
+  listClip = { items: structuredClone(items), text: cellText(items) }
+  cd.setData('text/plain', listClip.text)
+  return true
+}
+
+export function pasteItems(rowId, fieldId, type, text, always) {
+  const ours = listClip && (!text || text === listClip.text)
+  if (!ours && !always && !text?.includes('\n')) return false
+  let items = ours ? listClip.items : text ? (type === 'mixed' ? textToMixed(text) : todosFromText(text)) : []
+  if (!items.length) return false
+  items = freshCopy(items)
+  if (type === 'todo') items = items.map((t) => (t.kind === 'text' ? { id: t.id, text: t.text, done: false } : t))
+  update((d) => {
+    const r = findRow(d, rowId)
+    if (r) r.cells[fieldId] = [...(Array.isArray(r.cells[fieldId]) ? r.cells[fieldId] : []), ...items]
+  })
+  return true
 }
 
 export function setCell(rowId, fieldId, value) {
@@ -75,16 +104,149 @@ export function CellView({ field, row, data, now }) {
   }
 }
 
+// todayBlocks — the row's time blocks when the stopwatch can run there (today, or yesterday before its End), else null
+const todayBlocks = (data, row) => {
+  if (!data || !row) return null
+  const today = logicalToday(rolloverMinute(data))
+  return row.date === today || (row.date === addDays(today, -1) && row.cells.end == null) ? row.blocks || [] : null
+}
+
+// daySec — finished seconds recorded for a to-do on its own row
+const daySec = (row, t) => (row?.blocks || []).reduce((n, b) => n + (b.todo === t.id && b.end != null ? blockSec(b) : 0), 0)
+
+// tagTodo — sets a line's Category / Plan and copies them onto its time blocks
+function tagTodo(rowId, id, patch) {
+  update((d) => {
+    const r = findRow(d, rowId)
+    if (!r) return
+    for (const v of Object.values(r.cells)) if (Array.isArray(v)) for (const x of v) if (x?.id === id) {
+      for (const [k, val] of Object.entries(patch)) { if (val == null || (Array.isArray(val) && !val.length)) delete x[k]; else x[k] = val }
+    }
+    for (const b of r.blocks || []) if (b.todo === id) {
+      if ('cats' in patch) b.cats = patch.cats || []
+      if ('plan' in patch) b.plan = patch.plan ?? null
+    }
+  })
+}
+
+// TagButton — quick Category / Plan for a line, synced to its time blocks
+function TagButton({ rowId, t, data }) {
+  const [el, setEl] = useState(null)
+  const [q, setQ] = useState('')
+  const [plan, setPlan] = useState('')
+  const cats = t.cats || []
+  const stop = (e) => e.stopPropagation()
+  const open = (e) => { stop(e); setQ(''); setPlan(t.plan ? fmtDuration(t.plan) : ''); setEl(e.currentTarget) }
+  const commitPlan = () => { const v = plan.trim() ? parseDuration(plan) : null; if (plan.trim() && v == null) return; if (v !== (t.plan ?? null)) tagTodo(rowId, t.id, { plan: v }) }
+  const list = data.categories.filter((c) => (!c.archived || cats.includes(c.id)) && c.name.toLowerCase().includes(q.trim().toLowerCase()))
+  const toggle = (id) => tagTodo(rowId, t.id, { cats: cats.includes(id) ? cats.filter((x) => x !== id) : [...cats, id] })
+  const set = cats.length || t.plan
+  return (
+    <>
+      <button className={`todo-tag ${set ? 'on' : ''}`} title="Category / Plan" onMouseDown={stop} onClick={open}><Icon name="tag" size={13} /></button>
+      {el && (
+        <Popover anchor={el} align="right" width={220} onClose={() => { commitPlan(); setEl(null) }}>
+          <div className="tag-pop" onClick={stop} onMouseDown={stop} onKeyDown={stop}>
+            <div className="tag-row">
+              <input autoFocus className="line-editor slim tag-search" value={q} placeholder="Category" onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) toggle(list[0].id); if (e.key === 'Escape') setEl(null) }} />
+              <input className="line-editor slim tag-plan" value={plan} placeholder="Plan" title="Planned time, e.g. 30m or 1h" onChange={(e) => setPlan(e.target.value)} onBlur={commitPlan}
+                onKeyDown={(e) => { if (e.key === 'Enter') { commitPlan(); setEl(null) } if (e.key === 'Escape') setEl(null) }} />
+            </div>
+            <div className="tag-list">
+              {list.map((c) => { const m = catMeta(data, c.id); return (
+                <button key={c.id} className={`menu-item ${cats.includes(c.id) ? 'active' : ''}`} onClick={() => toggle(c.id)}>
+                  <Chip color={m.color}><CatIcon c={c} />{c.name}</Chip>
+                  {cats.includes(c.id) && <span className="menu-hint">✓</span>}
+                </button>
+              ) })}
+              {!list.length && <div className="empty-note">No categories</div>}
+            </div>
+          </div>
+        </Popover>
+      )}
+    </>
+  )
+}
+
+// WatchButton — starts the menu bar stopwatch for a to-do or note line
+function WatchButton({ rowId, date, t, blocks }) {
+  const running = blocks.some((b) => b.end == null && b.todo === t.id)
+  const paused = !running && blocks.some((b) => b.paused && b.todo === t.id)
+  const click = (e) => {
+    e.stopPropagation()
+    const min = nowMinutes(date)
+    if (running) stopRunning(rowId, min)
+    else if (paused) resumePaused(rowId, min)
+    else startBlock(rowId, null, min, plainText(t.text).trim(), t.id)
+  }
+  return (
+    <button className={`todo-watch ${running ? 'on' : paused ? 'paused' : ''}`} title={running ? 'Stop stopwatch' : paused ? 'Resume stopwatch' : 'Start stopwatch'}
+      onMouseDown={(e) => e.stopPropagation()} onClick={click}>
+      <Icon name="stopwatch" size={13} />
+    </button>
+  )
+}
+
+const shortMin = (m) => (m < 60 ? String(m) : `${Math.round(m / 60)}h`)
+
+// setTodoMinutes — edits a to-do's tracked total for its day by moving the end of its latest finished block
+function setTodoMinutes(rowId, id, total) {
+  update((d) => {
+    const r = findRow(d, rowId)
+    const mine = (r?.blocks || []).filter((b) => b.todo === id && b.end != null && !b.paused)
+    const last = mine.reduce((a, b) => (!a || b.start > a.start ? b : a), null)
+    if (!last) return
+    const others = Math.round(mine.reduce((n, b) => n + (b === last ? 0 : blockSec(b)), 0) / 60)
+    last.end = last.start + Math.max(1, total - others)
+    delete last.sec
+  })
+}
+
+// TodoTime — tracked minutes for a to-do or note line, click to edit
+function TodoTime({ rowId, t, mins }) {
+  const [edit, setEdit] = useState(null)
+  const stop = (e) => e.stopPropagation()
+  const done = useRef(false)
+  const commit = () => {
+    if (done.current) return
+    done.current = true
+    const v = parseDuration(edit)
+    if (v != null && v !== mins) setTodoMinutes(rowId, t.id, Math.min(1440, Math.max(1, v)))
+    setEdit(null)
+  }
+  const open = (e) => { stop(e); done.current = false; setEdit(String(mins)) }
+  if (edit != null) return (
+    <input autoFocus className="todo-time-input num" value={edit} onFocus={(e) => e.target.select()} onClick={stop} onMouseDown={stop}
+      onChange={(e) => setEdit(e.target.value)} onBlur={commit}
+      onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') { done.current = true; setEdit(null) } }} />
+  )
+  return <button className="todo-time num" title={`${fmtDuration(mins)} tracked · click to edit`} onMouseDown={stop} onClick={open}>{shortMin(mins)}</button>
+}
+
 function TodoLines({ items, rowId, fieldId, data, date }) {
   if (!Array.isArray(items) || !items.length) return null
+  const row = data && findRow(data, rowId)
+  const blocks = todayBlocks(data, row)
+  const side = (t) => {
+    const mins = Math.floor(daySec(row, t) / 60)
+    if (!blocks && !mins) return null
+    return (
+      <span className="todo-side">
+        {blocks && <span className="todo-hover"><TagButton rowId={rowId} t={t} data={data} /><WatchButton rowId={rowId} date={date} t={t} blocks={blocks} /></span>}
+        {mins > 0 && <TodoTime rowId={rowId} t={t} mins={mins} />}
+      </span>
+    )
+  }
   return (
     <span className="todo-list">
       {items.map((t) => (
-        t.kind === 'text' ? <span key={t.id} className="todo-line text-line"><span className="todo-text"><RichText text={t.text} /></span></span> :
+        t.kind === 'text' ? <span key={t.id} className="todo-line text-line"><span className="todo-text"><RichText text={t.text} /></span>{side(t)}</span> :
         <span key={t.id} className={`todo-line ${t.done ? 'done' : ''} ${t.carried ? 'carried' : ''}`}>
           {t.carried && !t.done ? <span className="todo-carried-mark" title="Carried to next day"><Icon name="arrow-down" size={14} /></span> : <Check checked={t.done} onToggle={() => toggleTodo(rowId, fieldId, t.id)} />}
           <span className="todo-text"><RichText text={t.text} /></span>
           {t.carried && !t.done && data && <span className="todo-age num">{todoAge(data, date, t)}d</span>}
+          {side(t)}
         </span>
       ))}
     </span>
@@ -153,6 +315,38 @@ function TodoList({ rowId, date, fieldId, autoFocus, mixed }) {
     setDraft('')
   }
   useEffect(() => () => add(latest.current.draft.trim(), latest.current.kind), [])
+  const type = mixed ? 'mixed' : 'todo'
+  const onAdd = (e) => addRef.current && addRef.current.contains(e.target)
+  const emptyAdd = () => !latest.current.draft.trim() && getSelection()?.isCollapsed !== false
+  useEffect(() => {
+    const before = (e) => { if (addRef.current && addRef.current.contains(document.activeElement) && emptyAdd()) e.preventDefault() }
+    document.addEventListener('beforecopy', before)
+    return () => document.removeEventListener('beforecopy', before)
+  }, [])
+  const onCopy = (e) => { if (onAdd(e) && emptyAdd() && copyItems(items, e.clipboardData)) { e.preventDefault(); e.stopPropagation() } }
+  const onPaste = (e) => { if (onAdd(e) && pasteItems(rowId, fieldId, type, e.clipboardData.getData('text/plain'))) { e.preventDefault(); e.stopPropagation() } }
+  const listRef = useRef(null)
+  useEffect(() => {
+    if (!drag) return
+    let el = listRef.current?.parentElement
+    while (el && !(el.scrollHeight > el.clientHeight && /auto|scroll/.test(getComputedStyle(el).overflowY))) el = el.parentElement
+    if (!el) return
+    let y = null
+    let raf
+    const onOver = (e) => { y = e.clientY }
+    const tick = () => {
+      if (y != null) {
+        const r = el.getBoundingClientRect()
+        const zone = Math.min(40, r.height / 3)
+        const d = y < r.top + zone ? y - (r.top + zone) : y > r.bottom - zone ? y - (r.bottom - zone) : 0
+        if (d) el.scrollBy({ top: Math.sign(d) * Math.min(20, 2 + Math.abs(d) / 3), behavior: 'instant' })
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    document.addEventListener('dragover', onOver)
+    raf = requestAnimationFrame(tick)
+    return () => { document.removeEventListener('dragover', onOver); cancelAnimationFrame(raf) }
+  }, [drag])
   const drop = () => {
     if (drag && over && drag !== over.id) patchTodos(rowId, fieldId, (l) => {
       const list = [...l]
@@ -164,9 +358,9 @@ function TodoList({ rowId, date, fieldId, autoFocus, mixed }) {
     setDrag(null); setOver(null); setArmed(null)
   }
   return (
-    <div onMouseUp={() => !drag && setArmed(null)}>
+    <div ref={listRef} onMouseUp={() => !drag && setArmed(null)} onCopyCapture={onCopy} onPasteCapture={onPaste}>
       {items.map((t) => (
-        <TodoRow key={t.id} t={t} rowId={rowId} fieldId={fieldId} age={t.carried && !t.done ? todoAge(data, date, t) : null} onEnter={() => addRef.current?.focus()}
+        <TodoRow key={t.id} t={t} rowId={rowId} fieldId={fieldId} date={date} blocks={todayBlocks(data, live)} data={data} age={t.carried && !t.done ? todoAge(data, date, t) : null} onEnter={() => addRef.current?.focus()}
           drag={{
             draggable: armed === t.id,
             className: `${drag === t.id ? 'dragging' : ''} ${over?.id === t.id ? `drop-${over.pos}` : ''}`,
@@ -207,7 +401,7 @@ function TodoEditor({ anchor, row, field, onClose }) {
   )
 }
 
-function TodoRow({ t, rowId, fieldId, onEnter, drag, age }) {
+function TodoRow({ t, rowId, fieldId, date, blocks, data, onEnter, drag, age }) {
   const [text, setText] = useState(t.text)
   useEffect(() => setText(t.text), [t.text])
   const commit = () => { const v = text.trim(); if (v && v !== t.text) patchTodos(rowId, fieldId, (l) => l.map((x) => (x.id === t.id ? { ...x, text: v } : x))); if (!v) setText(t.text) }
@@ -233,6 +427,8 @@ function TodoRow({ t, rowId, fieldId, onEnter, drag, age }) {
       />
       {age != null && <span className="todo-age num">{age}d</span>}
       <span className="todo-actions">
+      {blocks && <TagButton rowId={rowId} t={t} data={data} />}
+      {blocks && <WatchButton rowId={rowId} date={date} t={t} blocks={blocks} />}
       {!isText && fieldId !== 'pending' && (
         <button className={`todo-carry todo-send ${t.sent ? 'on' : ''}`} title={t.sent ? "Copied to next day's Pending · click to undo" : "Copy to next day's Pending"} onClick={() => sendToPending(rowId, fieldId, t.id)}>
           <Icon name="arrow-right" size={14} />
@@ -385,7 +581,7 @@ export function SelectEditor({ anchor, fieldId, rowId, onClose, value: valueProp
     else { setCell(rowId, fieldId, id); onClose() }
     setQ('')
   }
-  const list = options.filter((o) => o.name.toLowerCase().includes(q.toLowerCase()))
+  const list = options.filter((o) => !value.includes(o.id) && o.name.toLowerCase().includes(q.toLowerCase()))
   const exact = options.some((o) => o.name.toLowerCase() === q.trim().toLowerCase())
   const items = [...list.map((o) => ({ o })), ...(q.trim() && !exact ? [{ create: q.trim() }] : [])]
 
@@ -408,8 +604,7 @@ export function SelectEditor({ anchor, fieldId, rowId, onClose, value: valueProp
       <div className="select-list">
         {items.map((it, i) => it.o ? (
           <div key={it.o.id} className={`select-row ${i === hi ? 'hi' : ''}`} onMouseEnter={() => setHi(i)} onClick={() => toggle(it.o.id)}>
-            <Chip color={it.o.color}>{it.o.label ?? it.o.name}</Chip>
-            {value.includes(it.o.id) && <span className="tick">✓</span>}
+            <Chip color={it.o.color} title={it.o.label ?? it.o.name}><span className="chip-text">{it.o.label ?? it.o.name}</span></Chip>
             {(fieldId || onEditOption) && (
               <button className="row-more" onClick={(e) => { e.stopPropagation(); setEditing({ id: it.o.id, el: e.currentTarget }) }}>⋯</button>
             )}
@@ -436,10 +631,14 @@ function OptionEditor({ anchor, fieldId, optionId, onClose }) {
   if (!o) return null
   const patch = (p) => update((d) => { Object.assign(findField(d, fieldId).options.find((x) => x.id === optionId), p) })
   return (
-    <Popover anchor={anchor} width={220} onClose={() => { if (name.trim() && name !== o.name) patch({ name: name.trim() }); onClose() }}>
+    <Popover anchor={anchor} width={180} onClose={() => { if (name.trim() && name !== o.name) patch({ name: name.trim() }); onClose() }}>
       <div className="option-editor">
         <input autoFocus className="line-editor" value={name} onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { if (name.trim()) patch({ name: name.trim() }); onClose() } }} />
+        <div className="option-color">
+          <span>Colour</span>
+          <ColorSwatch value={o.color} onChange={(c) => patch({ color: c })} />
+        </div>
         <button className="menu-item danger" onClick={() => {
           update((d) => {
             const f = findField(d, fieldId)
@@ -452,10 +651,6 @@ function OptionEditor({ anchor, fieldId, optionId, onClose }) {
           })
           onClose()
         }}>Delete option</button>
-        <div className="option-color">
-          <span>Colour</span>
-          <ColorSwatch value={o.color} onChange={(c) => patch({ color: c })} />
-        </div>
       </div>
     </Popover>
   )
@@ -479,7 +674,7 @@ function CycleEditor({ anchor, row, data, onClose }) {
           {info ? <Chip color={info.color}>D{info.day} · {info.phase}{info.late ? ` +${info.late}d` : ''}</Chip> : <span className="muted">No cycle recorded yet</span>}
         </div>
         <div className="ce-row">
-          <span>Cycle day</span>
+          <span title="Cycle day">Day</span>
           <input autoFocus className="line-editor slim ce-day" inputMode="numeric" value={n} placeholder="—"
             onChange={(e) => setN(e.target.value.replace(/\D/g, ''))}
             onKeyDown={(e) => { if (e.key === 'Enter') { commitDay(); onClose('down') } }} />
@@ -490,7 +685,6 @@ function CycleEditor({ anchor, row, data, onClose }) {
         <button className={`menu-item ${isEnd ? 'active' : ''}`} disabled={!canEnd && !isEnd} onClick={() => { update((d) => togglePeriodEnd(d.settings, row.date)); onClose() }}>
           <span className="menu-icon"><Icon name="drop" size={15} /></span>End
         </button>
-        {info?.late > 0 && <div className="ce-note warn">{info.late} day{info.late > 1 ? 's' : ''} late against your usual {cycleLen(data.settings)}-day cycle. Mark the day it starts.</div>}
       </div>
     </Popover>
   )
