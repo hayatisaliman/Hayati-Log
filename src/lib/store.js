@@ -1,12 +1,16 @@
 import { useSyncExternalStore } from 'react'
+import { produce, setAutoFreeze } from 'immer'
 import { emptyData, DEFAULT_ICONS, todosFromText, textToMixed } from './schema.js'
 import { isoOf } from './time.js'
+import { bumpNotes, peekNote, readNoteUncached, saveNote } from './noteFiles.js'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const sandbox = !isTauri && typeof location !== 'undefined' && new URLSearchParams(location.search).has('sandbox')
 const api = (q = '') => `/api/data${sandbox ? `?sandbox=1${q ? `&${q}` : ''}` : q ? `?${q}` : ''}`
 let invoke = null
 export const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl+'
+
+setAutoFreeze(false)
 
 let data = null
 let status = { saving: false, savedAt: null, error: null, file: '' }
@@ -17,6 +21,7 @@ const statusListeners = new Set()
 let saveTimer = null
 let editor = null
 const editorMade = new WeakSet()
+const fileStates = new WeakMap()
 
 const emit = () => listeners.forEach((l) => l())
 const emitStatus = () => statusListeners.forEach((l) => l())
@@ -114,6 +119,70 @@ export async function loadData() {
   status.savedAt = data.savedAt || null
   emit()
   emitStatus()
+  extractImages().then(() => splitNotes())
+}
+
+// splitNotes — moves note blocks out of report.json into notes/<id>.json; prev makes a restore undoable
+async function splitNotes(prev) {
+  const own = data.notes.filter((n) => Array.isArray(n.blocks))
+  if (!own.length) return
+  const before = new Map()
+  const after = new Map()
+  try {
+    for (const n of own) {
+      if (prev) before.set(n.id, await readNoteUncached(n.id))
+      else if (peekNote(n.id) !== undefined) continue
+      await saveNote(n.id, n.blocks)
+      after.set(n.id, n.blocks)
+    }
+  } catch (e) {
+    console.warn('Note split skipped:', e)
+    return
+  }
+  const ids = new Set(own.map((n) => n.id))
+  update((d) => { for (const n of d.notes) if (ids.has(n.id)) delete n.blocks }, { history: false })
+  if (prev) { fileStates.set(prev, before); fileStates.set(data, after) }
+  bumpNotes()
+}
+
+function applyFiles(d) {
+  const m = fileStates.get(d)
+  if (!m) return
+  for (const [id, blocks] of m) if (blocks) saveNote(id, blocks).catch((e) => setStatus({ error: `Save failed: ${e}` }))
+  bumpNotes()
+}
+
+// fullData — data with every note's blocks filled in from its file, for export
+export async function fullData() {
+  const notes = []
+  for (const n of data.notes) notes.push(n.blocks ? n : { ...n, blocks: (await readNoteUncached(n.id)) || [] })
+  return { ...data, notes }
+}
+
+// extractImages — moves pasted base64 images out of the data into media/ files
+async function extractImages() {
+  const found = new Map()
+  const walk = (v) => {
+    if (typeof v === 'string') { if (v.startsWith('data:image/')) found.set(v, null) }
+    else if (v && typeof v === 'object') for (const k in v) walk(v[k])
+  }
+  walk(data)
+  if (!found.size) return
+  try {
+    const { dataUrlToMedia } = await import('./media.js')
+    for (const u of found.keys()) found.set(u, await dataUrlToMedia(u))
+  } catch (e) {
+    console.warn('Image extraction skipped:', e)
+    return
+  }
+  const swap = (o) => {
+    for (const k in o) {
+      const v = o[k]
+      if (typeof v === 'string') { if (found.has(v)) o[k] = found.get(v) }
+      else if (v && typeof v === 'object') swap(v)
+    }
+  }
+  update(swap, { history: false })
 }
 
 async function persist() {
@@ -145,8 +214,8 @@ export const setEditor = (ed) => { editor = ed }
 export const releaseEditor = (ed) => { if (editor === ed) editor = null }
 
 export function update(fn, { history = true, fromEditor = false } = {}) {
-  const next = structuredClone(data)
-  fn(next)
+  const next = produce(data, (draft) => { fn(draft) })
+  if (next === data) return
   if (fromEditor) editorMade.add(next)
   else editor = null
   if (history) {
@@ -161,11 +230,13 @@ export function update(fn, { history = true, fromEditor = false } = {}) {
 
 export function replaceData(next) {
   editor = null
-  past.push(data)
+  const prev = data
+  past.push(prev)
   future.length = 0
   data = migrate(next)
   emit()
   scheduleSave()
+  extractImages().then(() => splitNotes(prev))
 }
 
 export function undo() {
@@ -177,6 +248,7 @@ export function undo() {
   if (!past.length) { emit(); scheduleSave(); return }
   future.push(data)
   data = past.pop()
+  applyFiles(data)
   emit()
   scheduleSave()
 }
@@ -186,6 +258,7 @@ export function redo() {
   if (!future.length) return
   past.push(data)
   data = future.pop()
+  applyFiles(data)
   emit()
   scheduleSave()
 }

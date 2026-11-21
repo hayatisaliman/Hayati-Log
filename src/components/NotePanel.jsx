@@ -7,6 +7,7 @@ import { NoteEditor, blocksToText } from './NoteEditor.jsx'
 import { RichInput } from './FormatBar.jsx'
 import { VideoAutoplay, hasVideo } from './VideoBlock.jsx'
 import { update, MOD } from '../lib/store.js'
+import { loadNote, peekNote, saveNote } from '../lib/noteFiles.js'
 import { Toggle } from './Settings.jsx'
 
 const fmtDate = (ts) => {
@@ -24,7 +25,9 @@ export function NotePanel({ data, noteId, onClose, focusTitle, width, setWidth, 
   const [title, setTitle] = useState(note?.title || '')
   const [words, setWords] = useState(() => countWords(note?.body))
   const [menu, setMenu] = useState(null)
-  const [videos, setVideos] = useState(() => hasVideo(note?.blocks))
+  const [blocks, setBlocks] = useState(() => note?.blocks ?? peekNote(noteId))
+  const [loadError, setLoadError] = useState(null)
+  const [videos, setVideos] = useState(() => hasVideo(blocks))
   const editorRef = useRef(null)
   const titleRef = useRef(null)
   const timer = useRef(null)
@@ -32,13 +35,17 @@ export function NotePanel({ data, noteId, onClose, focusTitle, width, setWidth, 
 
   const flush = () => {
     clearTimeout(timer.current)
-    if (pending.current) { patchNote(pending.current.id, pending.current.patch, { fromEditor: true }); pending.current = null }
+    if (!pending.current) return
+    const { id, patch: { blocks: b, ...rest } } = pending.current
+    pending.current = null
+    if (b) saveNote(id, b).catch((e) => toast?.(`Note save failed: ${e.message || e}`))
+    if (Object.keys(rest).length) patchNote(id, rest, { fromEditor: true })
   }
 
   useEffect(() => {
     setTitle(note?.title || '')
     setWords(countWords(note?.body))
-    setVideos(hasVideo(note?.blocks))
+    if (blocks === undefined) loadNote(noteId).then((b) => { setBlocks(b); setVideos(hasVideo(b)) }).catch((e) => setLoadError(String(e.message || e)))
     if (focusTitle) setTimeout(() => titleRef.current?.focus(), 0)
     return flush
   }, [noteId])
@@ -95,8 +102,9 @@ export function NotePanel({ data, noteId, onClose, focusTitle, width, setWidth, 
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); editorRef.current?.focus() } }}
           />
           <VideoAutoplay.Provider value={!!(videos && note.autoplay)}>
-            <NoteEditor
-              note={note}
+            {loadError && <div className="note-empty">Could not open this note: {loadError}</div>}
+            {blocks !== undefined && <NoteEditor
+              note={{ ...note, blocks }}
               editorRef={editorRef}
               onChange={(blocks) => {
                 const body = blocksToText(blocks)
@@ -104,7 +112,7 @@ export function NotePanel({ data, noteId, onClose, focusTitle, width, setWidth, 
                 setVideos(hasVideo(blocks))
                 queue({ blocks, body })
               }}
-            />
+            />}
           </VideoAutoplay.Provider>
           <div className="journal-foot">Written {fmtTime(note.created)} · last edited {fmtDate(note.updated)}, {fmtTime(note.updated)}</div>
         </article>

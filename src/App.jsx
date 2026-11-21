@@ -16,6 +16,7 @@ import { Popover } from './components/Popover.jsx'
 import { QuickEntry } from './components/QuickEntry.jsx'
 import { FormatBar } from './components/FormatBar.jsx'
 import { useMenubar } from './lib/menubar.jsx'
+import { useNotesEpoch } from './lib/noteFiles.js'
 
 function useNow(boundary) {
   const [ts, setTs] = useState(() => Date.now())
@@ -34,6 +35,7 @@ function useNow(boundary) {
 
 export default function App() {
   const data = useData()
+  const notesEpoch = useNotesEpoch()
   applyPalette(data.settings)
   const status = useStatus()
   const now = useNow(rolloverMinute(data))
@@ -164,7 +166,7 @@ export default function App() {
         {view === 'settings' && <Settings data={data} toast={toast} now={now} />}
       </main>
 
-      {noteOpen && <NotePanel key={note.id} data={data} noteId={note.id} focusTitle={note.fresh} onClose={() => setNote(null)} width={Math.max(360, Math.min(noteWidth, window.innerWidth - 232 - 420))} setWidth={setNoteWidth} toast={toast} full={noteFull} setFull={setNoteFull} />}
+      {noteOpen && <NotePanel key={`${note.id}:${notesEpoch}`}data={data} noteId={note.id} focusTitle={note.fresh} onClose={() => setNote(null)} width={Math.max(360, Math.min(noteWidth, window.innerWidth - 232 - 420))} setWidth={setNoteWidth} toast={toast} full={noteFull} setFull={setNoteFull} />}
 
       <FormatBar />
 

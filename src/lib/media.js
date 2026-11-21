@@ -16,6 +16,12 @@ export async function saveMedia(file) {
   return `media:${name}`
 }
 
+export async function dataUrlToMedia(url) {
+  const blob = await (await fetch(url)).blob()
+  const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/g, '') || 'png'
+  return saveMedia(new File([blob], `image.${ext}`))
+}
+
 export async function mediaUrl(src) {
   if (!src?.startsWith('media:')) return src
   const name = src.slice(6)

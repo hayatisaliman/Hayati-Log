@@ -6,7 +6,7 @@ import { Chip } from './cells.jsx'
 import { DatePicker } from './DatePicker.jsx'
 import { CatIcon } from './TimeBlocks.jsx'
 import { DAY_NAMES, fmtClock, isoOf, longDate } from '../lib/time.js'
-import { update, replaceData, useStatus, listBackups, readBackup, exportData, MOD } from '../lib/store.js'
+import { update, replaceData, useStatus, listBackups, readBackup, exportData, fullData, MOD } from '../lib/store.js'
 import { monthMarkdown, quarterMarkdown } from './reportMarkdown.js'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -49,7 +49,7 @@ export function Settings({ data, toast, now }) {
       if (where) toast(`Exported to ${where.replace(/^\/Users\/[^/]+/, '~')}`)
     } catch (e) { toast(`Export failed: ${e.message || e}`) }
   }
-  const exportJson = () => saveFile(JSON.stringify(data, null, 1), `hayati-log-${new Date().toISOString().slice(0, 10)}.json`)
+  const exportJson = async () => saveFile(JSON.stringify(await fullData(), null, 1),`hayati-log-${new Date().toISOString().slice(0, 10)}.json`)
 
   const importData = (next, label) => {
     if (!Array.isArray(next?.rows)) throw new Error('Not a Hayati Log file')

@@ -14,6 +14,7 @@ import { detectEdgePosition, locales as columnLocales, multiColumnDropCursor, wi
 import { DEFAULT_NOTE_COLORS, NOTE_COLOR_NAMES, hueName } from '../lib/schema.js'
 import { getData, releaseEditor, setEditor, MOD } from '../lib/store.js'
 import { shortDate } from '../lib/time.js'
+import { mediaUrl, saveMedia } from '../lib/media.js'
 import { Icon } from './icons.jsx'
 import { videoBlock } from './VideoBlock.jsx'
 import { dateInline, dateMenuItems, insertDate } from './DateChip.jsx'
@@ -122,13 +123,6 @@ function rehoverOnScroll() {
   }, { passive: true, capture: true })
 }
 
-const fileToDataUrl = (f) => new Promise((resolve, reject) => {
-  const r = new FileReader()
-  r.onload = () => resolve(r.result)
-  r.onerror = reject
-  r.readAsDataURL(f)
-})
-
 export function blocksToText(blocks) {
   const out = []
   const walk = (bs) => {
@@ -152,7 +146,7 @@ export function NoteEditor({ note, onChange, editorRef }) {
 }
 
 export function BlockEditor({ docId, initial, onChange, editorRef, className, menuExtra: MenuExtra, onEditor, placeholder, noSideMenu, columns }) {
-  const editor = useCreateBlockNote({ schema: columns ? columnSchema : schema, ...(columns ? { dropCursor: columnDropCursor } : {}), dictionary: columns ? { ...noteDictionary(), multi_column: columnLocales.en } : noteDictionary(), initialContent: initial, uploadFile: fileToDataUrl, extensions: [syntaxHighlighter], placeholders: { ...en.placeholders, default: '', emptyDocument: placeholder || en.placeholders.emptyDocument } }, [docId])
+  const editor = useCreateBlockNote({ schema: columns ? columnSchema : schema, ...(columns ? { dropCursor: columnDropCursor } : {}), dictionary: columns ? { ...noteDictionary(), multi_column: columnLocales.en } : noteDictionary(), initialContent: initial, uploadFile: saveMedia, resolveFileUrl: mediaUrl, extensions: [syntaxHighlighter], placeholders: { ...en.placeholders, default: '', emptyDocument: placeholder || en.placeholders.emptyDocument } }, [docId])
   const detected = useRef(new Set())
   const cb = useRef(onChange)
   cb.current = onChange

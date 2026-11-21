@@ -26,8 +26,119 @@ fn load_data(app: tauri::AppHandle) -> Result<Option<String>, String> {
     if !file.exists() {
         return Ok(None);
     }
-    std::thread::spawn(move || prune_media(dir));
+    std::thread::spawn(move || {
+        prune_notes(&dir);
+        prune_media(dir);
+    });
     fs::read_to_string(file).map(Some).map_err(|e| e.to_string())
+}
+
+fn valid_note_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 100 && id.chars().all(|c| c.is_ascii_alphanumeric() || "_-".contains(c))
+}
+
+fn json_files(dir: &PathBuf) -> Vec<PathBuf> {
+    fs::read_dir(dir).map(|r| r.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().map_or(false, |x| x == "json")).collect()).unwrap_or_default()
+}
+
+fn note_backup_dirs(backups: &PathBuf) -> Vec<PathBuf> {
+    let mut v: Vec<_> = fs::read_dir(backups)
+        .map(|r| r.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.is_dir() && p.file_name().map_or(false, |n| n.to_string_lossy().starts_with("notes-"))).collect())
+        .unwrap_or_default();
+    v.sort();
+    v
+}
+
+#[tauri::command]
+fn load_note(app: tauri::AppHandle, id: String) -> Result<Option<String>, String> {
+    if !valid_note_id(&id) {
+        return Err("Invalid note id".into());
+    }
+    let file = data_dir(&app)?.join("notes").join(format!("{id}.json"));
+    if !file.exists() {
+        return Ok(None);
+    }
+    fs::read_to_string(file).map(Some).map_err(|e| e.to_string())
+}
+
+// save_note — keeps the first version of each day in backups/notes-<day>/
+#[tauri::command]
+fn save_note(app: tauri::AppHandle, id: String, json: String, day: String) -> Result<(), String> {
+    if !valid_note_id(&id) {
+        return Err("Invalid note id".into());
+    }
+    serde_json::from_str::<serde_json::Value>(&json).map_err(|e| e.to_string())?;
+    let dir = data_dir(&app)?;
+    let notes = dir.join("notes");
+    fs::create_dir_all(&notes).map_err(|e| e.to_string())?;
+    let file = notes.join(format!("{id}.json"));
+    let day: String = day.chars().filter(|c| c.is_ascii_digit() || *c == '-').collect();
+    if file.exists() && !day.is_empty() {
+        let bdir = dir.join("backups").join(format!("notes-{day}"));
+        let backup = bdir.join(format!("{id}.json"));
+        if !backup.exists() {
+            fs::create_dir_all(&bdir).map_err(|e| e.to_string())?;
+            fs::copy(&file, &backup).map_err(|e| e.to_string())?;
+        }
+    }
+    let tmp = notes.join(format!("{id}.json.tmp"));
+    fs::write(&tmp, json).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &file).map_err(|e| e.to_string())
+}
+
+fn note_ids(path: &PathBuf, out: &mut HashSet<String>) -> bool {
+    let Ok(text) = fs::read_to_string(path) else { return false };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { return false };
+    for n in v["notes"].as_array().into_iter().flatten() {
+        if let Some(id) = n["id"].as_str() {
+            out.insert(id.to_string());
+        }
+    }
+    true
+}
+
+// prune_notes — deletes notes/ files no note in the data or any backup points to
+fn prune_notes(dir: &PathBuf) {
+    let mut ids = HashSet::new();
+    if !note_ids(&dir.join("report.json"), &mut ids) {
+        return;
+    }
+    for p in json_files(&dir.join("backups")) {
+        note_ids(&p, &mut ids);
+    }
+    for p in json_files(&dir.join("notes")) {
+        let id = p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        if !ids.contains(&id) {
+            let _ = fs::remove_file(p);
+        }
+    }
+}
+
+// with_note_blocks — fills a backup's notes from the oldest note copy on or after its day, else the current file
+fn with_note_blocks(dir: &PathBuf, name: &str, raw: String) -> Result<String, String> {
+    let Some(day) = name.strip_prefix("report-").and_then(|s| s.strip_suffix(".json")) else { return Ok(raw) };
+    let mut v: serde_json::Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    let later: Vec<PathBuf> = note_backup_dirs(&dir.join("backups"))
+        .into_iter()
+        .filter(|p| p.file_name().map_or(false, |n| n.to_string_lossy()["notes-".len()..] >= *day))
+        .collect();
+    let Some(notes) = v["notes"].as_array_mut() else { return Ok(raw) };
+    let mut changed = false;
+    for n in notes.iter_mut() {
+        if n.get("blocks").is_some() {
+            continue;
+        }
+        let Some(id) = n["id"].as_str().filter(|id| valid_note_id(id)).map(String::from) else { continue };
+        let file = format!("{id}.json");
+        let src = later.iter().map(|d| d.join(&file)).find(|p| p.exists()).unwrap_or_else(|| dir.join("notes").join(&file));
+        if let Ok(text) = fs::read_to_string(src) {
+            if let Ok(blocks) = serde_json::from_str::<serde_json::Value>(&text) {
+                n["blocks"] = blocks;
+                changed = true;
+            }
+        }
+    }
+    if changed { serde_json::to_string(&v).map_err(|e| e.to_string()) } else { Ok(raw) }
 }
 
 fn media_refs(text: &str, out: &mut HashSet<String>) {
@@ -46,8 +157,11 @@ fn prune_media(dir: PathBuf) {
     let mut refs = HashSet::new();
     media_refs(&main, &mut refs);
     let mut others = vec![dir.join("report.sandbox.json")];
-    if let Ok(b) = fs::read_dir(dir.join("backups")) {
-        others.extend(b.filter_map(|e| e.ok()).map(|e| e.path()));
+    others.extend(json_files(&dir.join("backups")));
+    others.extend(json_files(&dir.join("notes")));
+    others.extend(json_files(&dir.join("notes.sandbox")));
+    for d in note_backup_dirs(&dir.join("backups")) {
+        others.extend(json_files(&d));
     }
     for p in others {
         if let Ok(t) = fs::read_to_string(p) {
@@ -92,6 +206,15 @@ fn save_data(app: tauri::AppHandle, json: String, day: String) -> Result<(), Str
             let _ = fs::remove_file(p);
         }
     }
+    let oldest = all.iter().rev().take(KEEP_BACKUPS).last().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy()["report-".len()..].to_string());
+    if let Some(oldest) = oldest {
+        for d in note_backup_dirs(&backups) {
+            let keep = d.file_name().map_or(true, |n| n.to_string_lossy()["notes-".len()..] >= *oldest);
+            if !keep {
+                let _ = fs::remove_dir_all(d);
+            }
+        }
+    }
     let tmp = dir.join("report.json.tmp");
     fs::write(&tmp, json).map_err(|e| e.to_string())?;
     fs::rename(&tmp, &file).map_err(|e| e.to_string())
@@ -130,7 +253,9 @@ fn read_backup(app: tauri::AppHandle, name: String) -> Result<String, String> {
     if name.is_empty() || !name.ends_with(".json") || !name.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c)) {
         return Err("Invalid backup name".into());
     }
-    fs::read_to_string(data_dir(&app)?.join("backups").join(name)).map_err(|e| e.to_string())
+    let dir = data_dir(&app)?;
+    let raw = fs::read_to_string(dir.join("backups").join(&name)).map_err(|e| e.to_string())?;
+    with_note_blocks(&dir, &name, raw)
 }
 
 #[tauri::command]
@@ -174,7 +299,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
         .invoke_handler(tauri::generate_handler![
-            load_data, save_data, data_path, list_backups, read_backup, media_dir, save_media, write_export,
+            load_data, save_data, load_note, save_note, data_path, list_backups, read_backup, media_dir, save_media, write_export,
             menubar::tray_icons, menubar::tray_watch, menubar::popup_info, menubar::popup_ready, menubar::popup_result,
             menubar::note_saved, menubar::bar_state, menubar::bar_size, menubar::bar_menu, menubar::get_launch_at_login, menubar::set_launch_at_login
         ])
