@@ -242,10 +242,10 @@ function TodoLines({ items, rowId, fieldId, data, date }) {
     <span className="todo-list">
       {items.map((t) => (
         t.kind === 'text' ? <span key={t.id} className="todo-line text-line"><span className="todo-text"><RichText text={t.text} /></span>{side(t)}</span> :
-        <span key={t.id} className={`todo-line ${t.done ? 'done' : ''} ${t.carried ? 'carried' : ''}`}>
-          {t.carried && !t.done ? <span className="todo-carried-mark" title="Carried to next day"><Icon name="arrow-down" size={14} /></span> : <Check checked={t.done} onToggle={() => toggleTodo(rowId, fieldId, t.id)} />}
+        <span key={t.id} className={`todo-line ${t.done ? 'done' : ''} ${moved(t) ? 'carried' : ''}`}>
+          {moved(t) ? <MovedMark t={t} /> : <Check checked={t.done} onToggle={() => toggleTodo(rowId, fieldId, t.id)} />}
           <span className="todo-text"><RichText text={t.text} /></span>
-          {t.carried && !t.done && data && <span className="todo-age num">{todoAge(data, date, t)}d</span>}
+          {moved(t) && data && <span className="todo-age num">{todoAge(data, date, t)}d</span>}
           {side(t)}
         </span>
       ))}
@@ -292,6 +292,9 @@ function copyToNextDay(rowId, fieldId, id, { flag, target, link }) {
     return list.map((x) => (x.id === id ? { ...x, [flag]: !x[flag] } : x))
   })
 }
+
+const moved = (t) => (t.carried || t.sent) && !t.done
+const MovedMark = ({ t }) => <span className="todo-carried-mark" title={t.carried ? 'Carried to next day' : "Moved to next day's Pending"}><Icon name={t.carried ? 'arrow-down' : 'arrow-right'} size={14} /></span>
 
 const carryTodo = (rowId, fieldId, id) => copyToNextDay(rowId, fieldId, id, { flag: 'carried', target: fieldId, link: 'from' })
 const sendToPending = (rowId, fieldId, id) => copyToNextDay(rowId, fieldId, id, { flag: 'sent', target: 'pending', link: 'sentFrom' })
@@ -360,7 +363,7 @@ function TodoList({ rowId, date, fieldId, autoFocus, mixed }) {
   return (
     <div ref={listRef} onMouseUp={() => !drag && setArmed(null)} onCopyCapture={onCopy} onPasteCapture={onPaste}>
       {items.map((t) => (
-        <TodoRow key={t.id} t={t} rowId={rowId} fieldId={fieldId} date={date} blocks={todayBlocks(data, live)} data={data} age={t.carried && !t.done ? todoAge(data, date, t) : null} onEnter={() => addRef.current?.focus()}
+        <TodoRow key={t.id} t={t} rowId={rowId} fieldId={fieldId} date={date} blocks={todayBlocks(data, live)} data={data} age={moved(t) ? todoAge(data, date, t) : null} onEnter={() => addRef.current?.focus()}
           drag={{
             draggable: armed === t.id,
             className: `${drag === t.id ? 'dragging' : ''} ${over?.id === t.id ? `drop-${over.pos}` : ''}`,
@@ -411,10 +414,10 @@ function TodoRow({ t, rowId, fieldId, date, blocks, data, onEnter, drag, age }) 
   const remove = () => patchTodos(rowId, fieldId, (l) => l.filter((x) => x.id !== t.id))
   const isText = t.kind === 'text'
   return (
-    <div className={`todo-row ${isText ? 'text-row' : ''} ${t.done ? 'done' : ''} ${t.carried ? 'carried' : ''} ${drag?.className || ''}`}
+    <div className={`todo-row ${isText ? 'text-row' : ''} ${t.done ? 'done' : ''} ${moved(t) ? 'carried' : ''} ${drag?.className || ''}`}
       draggable={drag?.draggable} onDragStart={drag?.onDragStart} onDragOver={drag?.onDragOver} onDrop={drag?.onDrop} onDragEnd={drag?.onDragEnd}>
       <span className="todo-handle" title="Drag to reorder" onMouseDown={drag?.onArm}><Icon name="grip" size={12} /></span>
-      {isText ? null : t.carried && !t.done ? <span className="todo-carried-mark" title="Carried to next day"><Icon name="arrow-down" size={14} /></span> : <Check checked={t.done} onToggle={() => toggleTodo(rowId, fieldId, t.id)} />}
+      {isText ? null : moved(t) ? <MovedMark t={t} /> : <Check checked={t.done} onToggle={() => toggleTodo(rowId, fieldId, t.id)} />}
       <RichInput
         className="todo-input"
         value={text}
