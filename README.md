@@ -75,6 +75,12 @@ Plan your day, see where your time really goes, and spot the patterns behind you
 
 ---
 
+## 📄 License
+
+[MIT](LICENSE). Free to use, change and share.
+
+---
+
 <details>
 <summary><b>🛠️ For developers</b></summary>
 
