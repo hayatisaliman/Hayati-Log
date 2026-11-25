@@ -2,12 +2,12 @@
 
 ![Hayati Log](docs/hero.png)
 
-**A daily log, time tracker and life report in one calm desktop app.**
+**A daily log, time tracker and life report in one desktop app.**
 Plan your day, see where your time really goes, and spot the patterns behind your good and bad days, all on your own computer.
 
 > **TL;DR**
 > - 📝 Simple log. One row per day: plan, to-dos, mood, sleep, habits
-> - ⏱️ A stopwatch and Pomodoro timer that lives in your **Mac menu bar** (Windows version less tested)
+> - ⏱️ A stopwatch, timer and note that lives in your **Mac menu bar** (Windows version less tested)
 > - 🩸 Built-in **menstrual cycle** tracking
 > - 🏷️ **Customisable patterns**: track behaviour, mood, health, lifestyle, anything, with an emoji
 > - 📊 Monthly and quarterly reports that connect it all
@@ -54,13 +54,13 @@ Plan your day, see where your time really goes, and spot the patterns behind you
 
 ![Monthly report](docs/monthly-report.png)
 
-![Home](docs/home.png)
-
-![Weekly plan](docs/weekly-plan.png)
-
 ![Task patterns](docs/task-patterns.png)
 
 ![Daily rhythm](docs/daily-rhythm.png)
+
+![Home](docs/home.png)
+
+![Weekly plan](docs/weekly-plan.png)
 
 ![Welcome note](docs/welcome-note.png)
 
@@ -72,16 +72,7 @@ Plan your day, see where your time really goes, and spot the patterns behind you
 
 1. Download the latest from [**Releases**](https://github.com/hayatisaliman/Hayati-Log/releases/latest): `.dmg` for Mac (Apple Silicon), `-setup.exe` for Windows (less tested).
 2. Open it. Explore the **example data** and read the **Welcome note**.
-3. Ready? Settings ⚙️ → Restore Data → **Delete All Data**, and start your first day.
-
-> **Mac: Blocked on open app?** The app isn't signed yet.
-> Go to System Settings → Privacy & Security → **Open Anyway**.
-> 
-> Still blocked or "damaged"? Run this in Terminal once:
-> ```bash
-> xattr -dr com.apple.quarantine "/Applications/Hayati Log.app"
-> ```
-> **Windows:** **More info** → **Run anyway**.
+3. Ready? Go to Settings ⚙️ → Restore Data → **Delete All Data**, and start your first log.
 
 ---
 
