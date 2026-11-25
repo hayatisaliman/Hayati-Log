@@ -46,9 +46,25 @@ Plan your day, see where your time really goes, and spot the patterns behind you
 
 **📊 Reports.** Monthly and quarterly views of habits, sleep, work vs rest, procrastination and your patterns, also by cycle phase.
 
-![Monthly report](docs/reports.png)
+![Quarterly report](docs/quarterly-report.png)
 
-![Quarterly report](docs/reports-quarterly.png)
+![Compare averages](docs/compare-averages.png)
+
+![Work and rest, state mix, Pattern Marks](docs/work-rest-state-marks.png)
+
+![Monthly report](docs/monthly-report.png)
+
+![Home](docs/home.png)
+
+![Weekly plan](docs/weekly-plan.png)
+
+![Task patterns](docs/task-patterns.png)
+
+![Daily rhythm](docs/daily-rhythm.png)
+
+![Welcome note](docs/welcome-note.png)
+
+![Settings](docs/settings.png)
 
 ---
 
