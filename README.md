@@ -52,7 +52,7 @@ Plan your day, see where your time really goes, and spot the patterns behind you
 
 ## 🚀 Get started
 
-1. Download from [`release/`](release/): `.dmg` for Mac, `-setup.exe` for Windows (less tested).
+1. Download the latest from [**Releases**](https://github.com/hayatisaliman/Hayati-Log/releases/latest): `.dmg` for Mac (Apple Silicon), `-setup.exe` for Windows (less tested).
 2. Open it. Explore the **example data** and read the **Welcome note**.
 3. Ready? Settings ⚙️ → Restore Data → **Delete All Data**, and start your first day.
 
