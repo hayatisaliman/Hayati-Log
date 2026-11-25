@@ -1,5 +1,7 @@
 # Hayati Log
 
+![Hayati Log](docs/hero.png)
+
 **A daily log, time tracker and life report in one calm desktop app.**
 Plan your day, see where your time really goes, and spot the patterns behind your good and bad days, all on your own computer.
 
