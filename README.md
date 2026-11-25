@@ -1,120 +1,129 @@
 # Hayati Log
 
-A local daily and monthly report app built to replace AppFlowy. It runs as a Tauri desktop app (or as a plain web page in dev mode).
+**A daily log, time tracker and life report in one calm desktop app.**
+Plan your day, see where your time really goes, and spot the patterns behind your good and bad days, all on your own computer.
 
-## Run
+> **TL;DR**
+> - 📝 Simple log. One row per day: plan, to-dos, mood, sleep, habits
+> - ⏱️ A stopwatch and Pomodoro timer that lives in your **Mac menu bar** (Windows version less tested)
+> - 🩸 Built-in **menstrual cycle** tracking
+> - 🏷️ **Customisable patterns**: track behaviour, mood, health, lifestyle, anything, with an emoji
+> - 📊 Monthly and quarterly reports that connect it all
+> - 🔒 Your data stays **on your computer**. No account, no cloud.
+> - 💾 Optional: Export to markdown or CSV for **Excel and Google Sheets**
+
+![Daily log](docs/daily-log.png)
+
+---
+
+## 💛 Made for
+
+- **ADHD brains:** see time, track procrastination and dopamine, get reminders.
+- **Women:** see how each cycle phase really feels.
+- **Anyone** tired of juggling five apps.
+
+---
+
+## ✨ Features
+
+**⏱️ Menu bar stopwatch, timer and note.** One clock you can start from the menu bar, sidebar or any to-do. Every run becomes a time block. The note keeps today's focus in sight.
+
+![Mac menu bar](docs/menu-bar.png)
+
+![Timer check-in](docs/timer-done.png)
+
+**🩸 Cycle tracking.** Mark your period start; the app counts days, shows phases and flags late periods.
+
+**🧠 Mood and dopamine.** Rate each day. Name the options your way, like *High / Low dopamine* or *Brain fog*.
+
+**🔁 Reminders.** Daily, weekly or monthly to-dos that appear in your Day Plan on their own.
+
+**↓ → Procrastination, kindly.** Carry a task to tomorrow or park it in Pending. A counter shows how long it's waited.
+
+**🏷️ Custom patterns.** Track anything with an emoji: 🤕 headaches, 📱 doom-scrolling, 🏝️ holidays.
+
+**📊 Reports.** Monthly and quarterly views of habits, sleep, work vs rest, procrastination and your patterns, also by cycle phase.
+
+![Monthly report](docs/reports.png)
+
+![Quarterly report](docs/reports-quarterly.png)
+
+---
+
+## 🚀 Get started
+
+1. Download from [`release/`](release/): `.dmg` for Mac, `-setup.exe` for Windows (less tested).
+2. Open it. Explore the **example data** and read the **Welcome note**.
+3. Ready? Settings ⚙️ → Restore Data → **Delete All Data**, and start your first day.
+
+> **Mac: Blocked on open app?** The app isn't signed yet.
+> Go to System Settings → Privacy & Security → **Open Anyway**.
+> 
+> Still blocked or "damaged"? Run this in Terminal once:
+> ```bash
+> xattr -dr com.apple.quarantine "/Applications/Hayati Log.app"
+> ```
+> **Windows:** **More info** → **Run anyway**.
+
+---
+
+## 🔒 Your data
+
+- One file on your computer. No account, no cloud.
+- Backed up daily (last 7 kept). Export to **CSV**, **JSON** or **Markdown** anytime.
+- **⌘Z** undoes almost anything.
+
+---
+
+<details>
+<summary><b>🛠️ For developers</b></summary>
+
+### Run
 
 ```bash
 npm install
 npm run tauri:dev
 ```
 
-Use `npm run dev` to work on it in a browser at http://localhost:5188. It reads and writes the same data file as the app.
+`npm run dev` opens it in a browser at http://localhost:5188, reading and writing the same data file as the app.
+Add `?demo` to the URL to load the example data without saving anything.
 
-Build the Mac app:
+### Build
 
 ```bash
 npm run tauri:build
 ```
 
-The app lands in `src-tauri/target/release/bundle/macos/Hayati Log.app`, and an installer disk image in `src-tauri/target/release/bundle/dmg/Hayati Log_<version>_aarch64.dmg`.
+- Mac app: `src-tauri/target/release/bundle/macos/Hayati Log.app`
+- Mac installer: `src-tauri/target/release/bundle/dmg/Hayati Log_<version>_aarch64.dmg`
+- Windows: GitHub **Actions → Windows build → Run workflow** (or push a `v*` tag), then download the `hayati-log-windows` artifact. On a Windows machine: `npm run tauri:build:win`.
 
-Build the Windows installer on GitHub: open **Actions → Windows build → Run workflow** (or push a `v*` tag). When it finishes, download the `hayati-log-windows` artifact from the run page. It contains `Hayati Log_<version>_x64-setup.exe` and the bare `hayati-log.exe`. To build on a Windows machine instead, run `npm run tauri:build:win`.
+Ready-made installers for the current version are kept in `release/`.
 
-Ready-made installers for the current version are kept in `release/`: the Mac `.dmg`, the Windows `-setup.exe` and the bare `hayati-log.exe`. Older versions are removed when a new one is added.
+### Data notes
 
-On Windows the data file is `%APPDATA%\hayati.log\report.json`.
+- Data file: `~/Library/Application Support/hayati.log/report.json` (Mac), `%APPDATA%\hayati.log\report.json` (Windows).
+- Notes are stored one file per note in `notes/`, pasted images in `media/`.
+- Only keep one copy open at a time (the app *or* the dev browser tab). Both write to the same file.
+- Older versions used a `com.hayati.report` folder. The app renames it to `hayati.log` on first start.
 
-## Data
-
-All data lives in one JSON file:
-
-`~/Library/Application Support/hayati.log/report.json`
-
-Older versions used a `com.hayati.report` folder. The app renames it to `hayati.log` the first time it starts.
-
-The app copies it into `backups/report-YYYY-MM-DD.json` once a day and keeps the last 14 copies. In Settings, **Export Data** saves a copy of the file, and **Restore Data** lists every backup (newest first) to restore from, or imports an exported file. A restore replaces everything and can be undone with ⌘Z.
-
-Only keep one copy open at a time (the app *or* the dev browser tab). Both write to the same file, and whichever saves last wins.
-
-## Features
-
-### Daily log
-
-- **Quick Start / End** — the header next to the month title has `‹ date ›` (click the date for a calendar), Start and End boxes, and **→** to write them into that day's row. The row is created if it doesn't exist.
-- **Easy time typing** — any time box accepts `4 30 a` (4:30 AM), `14 30`, `2:30p` or `5am`. Durations accept `1 30`, `1:30`, `1h 30m` or `90m`.
-- **Edit in the cell** — every cell edits in place; there are no pop-ups except the date calendar. Type straight onto a selected text cell. Enter saves and moves down, Tab moves sideways, Shift+Enter adds a line, Esc closes.
-- **Cell types** — the **+** at the end of the header asks for **Text**, **Text + checklist** or **Checklist**. Other types (number, select, time…) are under a column's **Type** menu.
-- **Text + checklist** (Day Plan, Work Focus, Work Done, Work Notes) — one list mixing text lines and to-dos. The add row's icon switches between text (the default) and to-do. Drag rows by their ⠿ handle to reorder.
-- **To-do buttons** (shown on hover) — **→** copies the to-do into the next day's Pending, **↓** carries it to the next day's same column, **×** deletes. Click a lit → or ↓ again to undo.
-- **Formatting** — select text in a cell for a toolbar: bold, italic, underline, strike, code and the note colours. Formatting shows as you type.
-- **Toolbar** — search (click the icon to open), filter, sort and properties sit on the right of the month goal.
-
-### Sidebar
-
-- **Search** — the icon beside the logo opens search across days and notes.
-- **Memos** — **+** beside the logo adds a sticker memo (rich text, `- ` for bullets). Hover for its colour and ×. Empty memos remove themselves.
-- **Time block quick start** — the bottom row (text set in Settings) opens a group › category picker. While a block runs it shows a live stopwatch; click it to **Pause / Resume** or **Stop**.
-- **Settings** is the gear on the "Last saved" line.
-
-### Time Blocks page
-
-- `‹ date ›` matches the daily log; the calendar marks days with blocks in green.
-- The eye icon hides the quick-start panel, timeline and totals. They start hidden for today and shown on other days.
-
-### Monthly Report
-
-- The state chart's **Work/Rest** bars stack rest (bottom) and work (top) time from those time-block groups.
-- **By cycle phase** shows total work and rest hours for each phase (PF, OV, LT, L, P).
-
-### Settings
-
-- **Colours** — General app accents (each with where it's used), 6 note text and 6 text background colours, to-do checkbox, 6 memo backgrounds and time-block group colours (rename and delete in place).
-- **Routine** — repeat a Day Plan to-do on chosen weekdays (**Day**) or a day of the month (**Date**, including last day). It's added once on the day itself.
-- **Time-Block Categories** — sidebar start text, categories (rename in place), and a folded archive with **Restore** and **Delete permanently** (two clicks; ⌘Z undoes).
-
-## When a new day starts
-
-There is no day boundary setting. The app works it out from your own Start and End entries:
-
-- **Today switches** at the time of your most recent End (bedtime). An evening End (after noon) switches at midnight instead. With no End yet, the most recent Start is used, and with neither, 4 AM.
-- **Typed times** earlier than that day's Start count as after midnight, so a 2 AM bedtime stays on the day you were up. Without a Start on the row, the most recent Start is used. A time typed into Start itself is checked against the day-switch time.
-
-"Most recent" means the row with the latest date that has the value filled in. Times already entered are never recalculated.
-
-## Shortcuts
-
-- **⌘Z / ⌘⇧Z** — undo / redo. If you last changed a note, memo or Weekly Plan block, it undoes that first, then app actions like deleted days or notes.
-- **Esc** — closes a cell editor and leaves any text field, so ⌘Z reaches app undo.
-- **⌘D** — in the table, copies the cell above into the selected cell. In a note, memo or Weekly Plan, duplicates the current block.
-- **Enter / Tab** — in a table cell, save and move down / sideways. **Shift+Enter** adds a line.
-
-## Importing from AppFlowy
+### Import from AppFlowy
 
 ```bash
 npm run import:appflowy -- --dry-run
 npm run import:appflowy -- --force
 ```
 
-This reads AppFlowy's local SQLite cache read-only and pulls in:
+Reads AppFlowy's local SQLite cache (read-only) and imports the monthly daily-log tables and time-block tables. `--force` replaces the current file, keeping a copy in `backups/` first.
 
-- the monthly daily-log tables
-- the time-block tables inside day pages
+### Layout
 
-Where AppFlowy has duplicate monthly tables, the most recently edited value wins for each cell. Cycle-day tags (D1 Period … D33 Late) become period-start dates, so the Cycle column counts itself. `--force` replaces the current file, and a copy is kept in `backups/` first.
+- `src/lib/` — time parsing, schema and colours, store, undo and saving, sample data
+- `src/components/Table.jsx`, `cells.jsx` — the daily log table and its cells
+- `src/components/TimeBlocks.jsx`, `TimeBlocksPage.jsx` — time blocks and stopwatch
+- `src/components/MonthReport.jsx`, `QuarterReport.jsx`, `Procrastination.jsx` — reports
+- `src/components/NoteEditor.jsx`, `NotePanel.jsx` — notes (also used by Weekly Plan and memos)
+- `src/components/Sidebar.jsx`, `Settings.jsx` — sidebar and settings
+- `src-tauri/` — desktop shell, menu bar (`menubar.rs`), Windows taskbar (`taskbar.rs`), saving and backups
 
-## Layout
-
-- `src/lib/` — time parsing, default schema and colours, store, undo and persistence
-- `src/components/Table.jsx` — Notion-style table
-- `src/components/cells.jsx` — table cell views and editors (text, mixed lists, checklists, time, tags, cycle)
-- `src/components/FormatBar.jsx` — cell formatting toolbar and rich text
-- `src/components/QuickEntry.jsx` — header Start / End entry
-- `src/components/DatePicker.jsx` — calendar and `‹ date ›` control
-- `src/components/TimeBlocks.jsx`, `TimeBlocksPage.jsx` — time blocks
-- `src/components/MonthReport.jsx` — monthly report
-- `src/components/WeeklyPlan.jsx` — weekly plan
-- `src/components/NoteEditor.jsx`, `NotePanel.jsx` — notes (BlockNote editor, also used by Weekly Plan and memos)
-- `src/components/Sidebar.jsx` — sidebar, search, memos and the time-block stopwatch
-- `src/components/Settings.jsx` — settings, colours, routines, export and restore
-- `src-tauri/` — desktop shell (load, save, backups and backup listing in `src/lib.rs`)
+</details>

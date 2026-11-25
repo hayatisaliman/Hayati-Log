@@ -66,6 +66,12 @@ export default function App() {
     if (due.length) update((d) => addRoutines(d, now.today, due), { history: false })
   }, [now.today, data.settings.routines])
 
+  useEffect(() => {
+    if (!data.welcomePending) return
+    if (data.notes.some((n) => n.id === 'n-welcome')) { setNoteFull(false); setNote({ id: 'n-welcome', fresh: false }) }
+    update((d) => { delete d.welcomePending }, { history: false })
+  }, [])
+
   useEffect(() => { try { localStorage.setItem('hr.noteWidth', String(noteWidth)) } catch { /* private mode */ } }, [noteWidth])
 
   useEffect(() => {
@@ -94,6 +100,7 @@ export default function App() {
   useMenubar(data, (v) => (v === 'blocks' ? openBlocks(now.today) : setView(v)))
 
   const openNote = (id, fresh) => setNote(id ? { id, fresh: !!fresh } : null)
+  const leave = (fn) => (...args) => { if (noteFull) setNote(null); return fn(...args) }
 
   const newDay = () => {
     const taken = new Set(data.rows.map((r) => r.date))
@@ -140,8 +147,8 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar data={data} view={view} setView={setView} onWeekMonth={(m) => { setView('weekly'); setWeekFocus({ month: m, t: Date.now() }) }} month={month} setMonth={setMonth} now={now} status={status}
-        onGoToDay={goToDay} openNoteId={noteOpen ? note.id : null} onOpenNote={openNote} searchRef={searchRef} />
+      <Sidebar data={data} view={view} setView={leave(setView)} onWeekMonth={leave((m) => { setView('weekly'); setWeekFocus({ month: m, t: Date.now() }) })} month={month} setMonth={leave(setMonth)} now={now} status={status}
+        onGoToDay={leave(goToDay)} openNoteId={noteOpen ? note.id : null} onOpenNote={openNote} searchRef={searchRef} />
 
       <main className="main" hidden={noteOpen && noteFull}>
         <div className="drag-region top" data-tauri-drag-region />

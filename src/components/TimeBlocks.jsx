@@ -259,7 +259,7 @@ export function TimeBlocks({ row, data, isToday, nowMin, addRef, compact }) {
       {blocks.length > 0 && (
         <div className="tb-list">
           <div className="tb-row tb-headrow">
-            <span /><span>Time</span><span>Length</span><span>Category</span><span>Activity / reason</span><span>Plan</span><span>Sync log</span><span />
+            <span /><span>Time</span><span>Length</span><span>Category</span><span>Activity / reason</span><span>Target</span><span>Sync log</span><span />
           </div>
           {blocks.map((b, i) => (
             <BlockRow
@@ -398,7 +398,7 @@ function BlockRow({ b, dur, data, row, rowId, boundary, isRunning, autoFocus, on
         <input
           className={`plan-input ${delta != null && delta <= 5 ? 'ok' : ''}`}
           value={planText}
-          placeholder="Plan"
+          placeholder=""
           onChange={(e) => setPlanText(e.target.value)}
           onBlur={() => { const p = parseDuration(planText); if (!planText.trim()) set({ plan: null }); else if (p != null) { set({ plan: p }); setPlanText(fmtDuration(p)) } else setPlanText(b.plan == null ? '' : fmtDuration(b.plan)) }}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}

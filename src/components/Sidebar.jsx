@@ -8,7 +8,7 @@ import { Popover, Menu } from './Popover.jsx'
 import { BrandMark, Icon, IconPicker } from './icons.jsx'
 import { weeklyMonths } from './WeeklyPlan.jsx'
 import { addChoreSection, choresTitle } from './Chores.jsx'
-import { COLORS, cellText, MEMO_COLOR_NAMES, DEFAULT_MEMO_COLORS, hueName } from '../lib/schema.js'
+import { COLORS, cellText, MEMO_COLOR_NAMES, memoHex, DEFAULT_START_LABEL, hueName } from '../lib/schema.js'
 import { BlockEditor, blocksToText } from './NoteEditor.jsx'
 
 function usePref(key, init) {
@@ -121,7 +121,7 @@ export function Sidebar({ data, view, setView, onWeekMonth, month, setMonth, now
                   {ms.length > latest.length && <button className="row-more" onClick={(e) => { e.stopPropagation(); setYearMenu({ y, el: e.currentTarget }) }}>⋯</button>}
                 </div>
                 {!closed && shown.map((m) => (
-                  <button className={`nav-month ${view === 'table' && month === m ? 'on' : ''}`} onClick={() => { setMonth(m); setView('table') }}>
+                  <button key={m} className={`nav-month ${view === 'table' && month === m ? 'on' : ''}`} onClick={() => { setMonth(m); setView('table') }}>
                     <span className="nav-month-name">
                       {MONTHS[+m.slice(5) - 1]}
                       {removable(m) && (
@@ -172,7 +172,7 @@ export function Sidebar({ data, view, setView, onWeekMonth, month, setMonth, now
         {!active && (
           <button className={`nav side-start ${startMenu ? 'on' : ''}`} title="Start a time block" onClick={(e) => setStartMenu(e.currentTarget.querySelector('.nav-add'))}>
             <span className="nav-ico"><Icon name="stopwatch" /></span>
-            <span className="grow">{data.settings.startLabel || 'Bismillah'}</span>
+            <span className="grow">{data.settings.startLabel || DEFAULT_START_LABEL}</span>
             <span className="nav-add"><Icon name="chevron" size={13} /></span>
           </button>
         )}
@@ -329,7 +329,7 @@ function Memo({ memo, autoFocus }) {
         <Popover anchor={picker} onClose={() => setPicker(null)} width={196}>
           <div className="memo-swatches">
             {MEMO_COLOR_NAMES.map((n) => (
-              <button key={n} title={hueName(getData().settings.memoColors?.[n] || DEFAULT_MEMO_COLORS[n])} className={`memo-swatch ${n === color ? 'on' : ''}`} style={{ background: `var(--memo-${n})` }}
+              <button key={n} title={hueName(memoHex(getData().settings, n))} className={`memo-swatch ${n === color ? 'on' : ''}`} style={{ background: `var(--memo-${n})` }}
                 onClick={() => { update((d) => { const m = (d.memos || []).find((x) => x.id === memo.id); if (m) m.color = n }); setPicker(null) }} />
             ))}
           </div>

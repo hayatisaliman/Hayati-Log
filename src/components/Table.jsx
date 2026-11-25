@@ -318,7 +318,7 @@ function HeaderMenu({ menu, data, view, setView, onClose }) {
       { icon: 'eye-off', label: 'Hide', run: () => update((d) => { findField(d, field.id).hidden = true }) },
     ]),
     { icon: 'arrows-h', label: field.wide ? 'Default width' : 'Wider', run: () => update((d) => { const f = findField(d, field.id); f.width = f.wide ? 150 : 280; f.wide = !f.wide }) },
-    ...(field.primary || FIELD_TYPES[field.type]?.computed ? [] : [
+    ...(field.primary || field.id === 'plan' || FIELD_TYPES[field.type]?.computed ? [] : [
       '-',
       { icon: 'x', label: 'Delete property', danger: true, run: () => update((d) => { d.fields = d.fields.filter((f) => f.id !== field.id); for (const r of d.rows) delete r.cells[field.id] }) },
     ]),
@@ -332,7 +332,7 @@ function HeaderMenu({ menu, data, view, setView, onClose }) {
             onFocus={(e) => menu.rename && e.target.select()}
             onKeyDown={(e) => { if (e.key === 'Enter') close() }} />
         </div>
-        <button className="menu-item" disabled={field.primary || FIELD_TYPES[field.type]?.computed} onClick={(e) => setTypeMenu(e.currentTarget)}>
+        <button className="menu-item" disabled={field.primary || field.id === 'plan' || FIELD_TYPES[field.type]?.computed} onClick={(e) => setTypeMenu(e.currentTarget)}>
           <span className="menu-icon"><FieldIcon type={field.type} /></span>
           <span>Type</span>
           <span className="menu-hint">{FIELD_TYPES[field.type]?.label} ›</span>

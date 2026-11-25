@@ -14,6 +14,7 @@ function standOut(x) {
   const vs = `${pc(x.slip)} of slip days vs ${pc(x.other)} of other days`
   if (x.kind === 'state') return `${x.name} on ${vs}.`
   if (x.kind === 'phase') return `${PHASE_NAME[x.name] || x.name} on ${vs}.`
+  if (x.kind === 'mark') return `${x.name} on ${vs}.`
   return `Friction "${x.name}" on ${x.n} slip day${x.n > 1 ? 's' : ''}${x.otherN ? ` vs ${x.otherN} other day${x.otherN > 1 ? 's' : ''}` : ` and never on other days`}.`
 }
 
@@ -22,10 +23,11 @@ export function insights(p) {
   const out = []
   const top = p.pushed[0]
   if (top) out.push(`Longest slip: "${top.text}" sat ${top.days} days${top.status === 'done' ? ' before it got done' : top.status === 'dropped' ? ' and was dropped' : ' and is still open'}.`)
-  if (p.stuck.length) out.push(`${p.stuck.length} stuck day${p.stuck.length > 1 ? 's' : ''} marked ☠️${p.diverts ? `, with ${p.diverts} diversions logged on them` : ''}.`)
+  if (p.stuck.length) out.push(`${p.stuck.length} stuck day${p.stuck.length > 1 ? 's' : ''} marked ${p.stuckLabel}${p.diverts ? `, with ${p.diverts} diversion${p.diverts > 1 ? 's' : ''} logged on them` : ''}.`)
+  for (const m of p.marks) out.push(`${`${m.label} ${m.emojis}`.trim()}: ${m.n} day${m.n > 1 ? 's' : ''}${m.slip ? `, ${m.slip} of them slip days` : ''}.`)
   if (p.slipDays && p.otherDays) {
     p.stands.slice(0, 3).forEach((x) => out.push(standOut(x)))
-    if (!p.stands.length) out.push(`No state, cycle phase or friction stood out: slip days (${p.slipDays}) looked like the other ${p.otherDays} days.`)
+    if (!p.stands.length) out.push(`No state, cycle phase, friction or mark stood out: slip days (${p.slipDays}) looked like the other ${p.otherDays} days.`)
   } else if (p.slipDays) out.push(`Every logged day was a slip day, so there's nothing to compare against.`)
   if (p.tasks && !p.pushed.length && !p.stuck.length) out.push('Nothing slipped this month. Everything planned got done on the day.')
   return out
@@ -33,11 +35,11 @@ export function insights(p) {
 
 export function ProcrastinationCard({ rows, data, today, onOpen }) {
   const p = procrastination(rows, data, today)
-  if (!p.tasks && !p.stuck.length) return null
+  if (!p.tasks && !p.stuck.length && !p.marks.length) return null
   const notes = insights(p)
   return (
     <section className="card wide procrast">
-      <div className="card-head"><h3>Procrastination</h3><span className="section-meta">Slip day: ↓ carried, → moved to Pending, ✅ ☑️ ‼️ ☠️ marks, and lines that keep coming back</span></div>
+      <div className="card-head"><h3>Task Patterns</h3><span className="section-meta">Slip day: a to-do carried ↓, moved → to Pending, or written again within 3 days</span></div>
       <div className="tiles procrast-tiles">
         <div className="tile">
           <div className="tile-label">Done on the day</div>
@@ -50,19 +52,19 @@ export function ProcrastinationCard({ rows, data, today, onOpen }) {
           <div className="tile-sub">{p.sent ? `${p.sent} moved to Pending · ` : ''}{p.open ? `${p.open} still open` : 'none still open'}{p.dropped ? ` · ${p.dropped} dropped` : ''}</div>
         </div>
         <div className="tile">
-          <div className="tile-label">Avg delay</div>
-          <div className="tile-value num">{p.avgDelay == null ? '—' : `${Math.round(p.avgDelay * 10) / 10}d`}</div>
-          <div className="tile-sub">first planned → ✅</div>
+          <div className="tile-label">Avg delay days</div>
+          <div className="tile-value num">{p.avgDelay == null ? '—' : Math.round(p.avgDelay * 10) / 10}</div>
+          <div className="tile-sub">first planned → ticked</div>
         </div>
         <div className="tile">
           <div className="tile-label">Stuck days</div>
           <div className="tile-value num">{p.stuck.length}</div>
-          <div className="tile-sub">days marked ☠️</div>
+          <div className="tile-sub">{p.stuckLabel ? `days with ${p.stuckLabel} in ${data.fields.find((f) => f.id === p.stuckField)?.name || 'any column'}` : 'no stuck mark set'}</div>
         </div>
       </div>
       <div className="procrast-body">
         <div className="procrast-col">
-          <div className="mini-head">Kept pushing</div>
+          <div className="mini-head">Procrastination</div>
           {p.pushed.length ? (
             <div className="mini-list">
               {p.pushed.slice(0, 6).map((x) => (

@@ -11,7 +11,16 @@ export const DEFAULT_PALETTE = {
   red: '#a13333',
   pink: '#7d8dee',
 }
-export const DEFAULT_MENUBAR_COLORS = { timer: '#ffa41c', stopwatch: '#71ff19' }
+export const DEFAULT_START_LABEL = 'Start Time Log'
+export const STUCK_MARK = { id: 'stuck', label: 'Stuck day', field: '', emojis: ['☠️'] }
+export const DEFAULT_MARKS = [STUCK_MARK, { id: 'mk-urgent', label: 'Urgent', field: '', emojis: ['‼️'] }]
+// marksList — Pattern Marks from Settings; Stuck day always comes first and keeps its name
+export function marksList(settings) {
+  const m = Array.isArray(settings?.marks) ? settings.marks : DEFAULT_MARKS
+  const stuck = m.find((x) => x.id === 'stuck')
+  return [{ ...STUCK_MARK, ...stuck, label: STUCK_MARK.label }, ...m.filter((x) => x.id !== 'stuck')]
+}
+export const DEFAULT_MENUBAR_COLORS = { timer: '#ffa41c', stopwatch: '#006a67' }
 const PALETTE = { ...DEFAULT_PALETTE }
 
 export const ACCENT_USES = {
@@ -72,13 +81,16 @@ export function noteBgDefault(hex) {
   return `#${a.map((v, i) => Math.round(v * 0.22 + b[i] * 0.78).toString(16).padStart(2, '0')).join('')}`
 }
 export const DEFAULT_CHECK_COLOR = '#1e7cb3'
-export const MEMO_COLOR_NAMES = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6']
-export const DEFAULT_MEMO_COLORS = { m1: '#2b2b2b', m2: '#461111', m3: '#00302e', m4: '#003161', m5: '#000b58', m6: '#fff4b7' }
+// MEMO_BG — memos use the Notes text background colours
+const MEMO_BG = { m1: 'gray', m2: 'red', m5: 'orange', m6: 'yellow', m3: 'green', m4: 'blue' }
+export const MEMO_COLOR_NAMES = Object.keys(MEMO_BG)
+export const noteBgHex = (settings, n) => settings.noteBgColors?.[n] || (settings.noteColors?.[n] ? noteBgDefault(settings.noteColors[n]) : DEFAULT_NOTE_BG_COLORS[n])
+export const memoHex = (settings, m) => noteBgHex(settings, MEMO_BG[m] || 'gray')
 const isLight = (hex) => { const [r, g, b] = rgb(hex); return 0.299 * r + 0.587 * g + 0.114 * b > 150 }
 
 let applied = ''
 export function applyPalette(settings) {
-  const key = JSON.stringify([settings.palette, settings.noteColors, settings.noteBgColors, settings.checkColor, settings.memoColors, settings.menubarColors])
+  const key = JSON.stringify([settings.palette, settings.noteColors, settings.noteBgColors, settings.checkColor, settings.menubarColors])
   if (key === applied) return
   applied = key
   Object.assign(PALETTE, DEFAULT_PALETTE, settings.palette || {})
@@ -99,10 +111,10 @@ export function applyPalette(settings) {
   root.setProperty('--check', settings.checkColor || DEFAULT_CHECK_COLOR)
   root.setProperty('--watch', settings.menubarColors?.stopwatch || DEFAULT_MENUBAR_COLORS.stopwatch)
   root.setProperty('--timer', settings.menubarColors?.timer || DEFAULT_MENUBAR_COLORS.timer)
-  const memos = { ...DEFAULT_MEMO_COLORS, ...(settings.memoColors || {}) }
   for (const n of MEMO_COLOR_NAMES) {
-    root.setProperty(`--memo-${n}`, memos[n])
-    root.setProperty(`--memo-${n}-text`, isLight(memos[n]) ? '#111111' : '#f2f0f0')
+    const hex = memoHex(settings, n)
+    root.setProperty(`--memo-${n}`, hex)
+    root.setProperty(`--memo-${n}-text`, isLight(hex) ? '#111111' : '#f2f0f0')
   }
 }
 export const COLOR_NAMES = Object.keys(PALETTE)
@@ -220,7 +232,7 @@ export const DEFAULT_ICONS = {
 function defaultGroups() {
   return [
     { id: 'work', name: 'Work', color: '#1e7cb3' },
-    { id: 'self', name: 'Self-care', color: '#006a67' },
+    { id: 'self', name: 'Self-care', color: '#840dac' },
     { id: 'home', name: 'Home', color: '#b3541e' },
     { id: 'rest', name: 'Rest', color: '#b8c2ff' },
     { id: 'out', name: 'Out', color: '#fff4b7' },

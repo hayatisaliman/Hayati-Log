@@ -3,6 +3,7 @@ import { isoOf } from './time.js'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const sandbox = !isTauri && typeof location !== 'undefined' && new URLSearchParams(location.search).has('sandbox')
+const demo = !isTauri && typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo')
 const KEEP = 10
 const cache = new Map()
 const core = () => import('@tauri-apps/api/core')
@@ -22,6 +23,7 @@ const remember = (id, blocks) => {
 export const peekNote = (id) => (cache.has(id) ? cache.get(id) : undefined)
 
 async function readFile(id) {
+  if (demo) return null
   const raw = isTauri ? await (await core()).invoke('load_note', { id }) : await fetch(url(id)).then((r) => (r.ok ? r.text() : r.status === 404 ? null : Promise.reject(new Error(`Could not load note (${r.status})`))))
   return raw ? JSON.parse(raw) : null
 }
@@ -38,6 +40,7 @@ export const readNoteUncached = (id) => (cache.has(id) ? Promise.resolve(cache.g
 
 export async function saveNote(id, blocks) {
   remember(id, blocks)
+  if (demo) return
   const json = JSON.stringify(blocks)
   const day = isoOf(new Date())
   if (isTauri) return (await core()).invoke('save_note', { id, json, day })

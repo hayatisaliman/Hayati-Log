@@ -3,9 +3,11 @@ import { produce, setAutoFreeze } from 'immer'
 import { emptyData, DEFAULT_ICONS, todosFromText, textToMixed } from './schema.js'
 import { isoOf } from './time.js'
 import { bumpNotes, peekNote, readNoteUncached, saveNote } from './noteFiles.js'
+import { sampleData } from './sample.js'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const sandbox = !isTauri && typeof location !== 'undefined' && new URLSearchParams(location.search).has('sandbox')
+export const demo = !isTauri && typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo')
 const api = (q = '') => `/api/data${sandbox ? `?sandbox=1${q ? `&${q}` : ''}` : q ? `?${q}` : ''}`
 let invoke = null
 export const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl+'
@@ -101,16 +103,19 @@ function migrate(d) {
 
 export async function loadData() {
   try {
-    if (isTauri) {
+    if (demo) {
+      status.file = 'Demo · changes are not saved'
+      data = migrate(sampleData())
+    } else if (isTauri) {
       invoke = (await import('@tauri-apps/api/core')).invoke
       const raw = await invoke('load_data')
       status.file = await invoke('data_path')
-      data = raw ? migrate(JSON.parse(raw)) : emptyData()
+      data = migrate(raw ? JSON.parse(raw) : sampleData())
     } else {
       const info = await fetch('/api/info').then((r) => r.json()).catch(() => ({}))
       status.file = info.file || ''
       const res = await fetch(api())
-      data = res.ok ? migrate(await res.json()) : emptyData()
+      data = res.ok ? migrate(await res.json()) : res.status === 404 ? migrate(sampleData()) : emptyData()
     }
   } catch (e) {
     status.error = `Could not load data: ${e}`
@@ -119,7 +124,7 @@ export async function loadData() {
   status.savedAt = data.savedAt || null
   emit()
   emitStatus()
-  extractImages().then(() => splitNotes())
+  if (!demo) extractImages().then(() => splitNotes())
 }
 
 // splitNotes — moves note blocks out of report.json into notes/<id>.json; prev makes a restore undoable
@@ -188,6 +193,7 @@ async function extractImages() {
 async function persist() {
   clearTimeout(saveTimer)
   saveTimer = null
+  if (demo) return
   const savedAt = Date.now()
   const json = JSON.stringify({ ...data, savedAt }, null, 1)
   const day = isoOf(new Date())
@@ -236,7 +242,7 @@ export function replaceData(next) {
   data = migrate(next)
   emit()
   scheduleSave()
-  extractImages().then(() => splitNotes(prev))
+  if (!demo) extractImages().then(() => splitNotes(prev))
 }
 
 export function undo() {
@@ -268,6 +274,7 @@ if (typeof window !== 'undefined') {
 }
 
 export async function listBackups() {
+  if (demo) return []
   if (isTauri) return invoke('list_backups')
   const res = await fetch('/api/backups')
   if (!res.ok) throw new Error(await res.text())
@@ -284,13 +291,13 @@ export async function exportData(text, name) {
   if (isTauri) {
     const { save } = await import('@tauri-apps/plugin-dialog')
     const ext = name.split('.').pop()
-    const path = await save({ defaultPath: name, filters: [{ name: ext === 'md' ? 'Markdown' : 'JSON', extensions: [ext] }] })
+    const path = await save({ defaultPath: name, filters: [{ name: { md: 'Markdown', csv: 'CSV' }[ext] || 'JSON', extensions: [ext] }] })
     if (!path) return null
     await invoke('write_export', { path, text })
     return path
   }
   const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob([text], { type: name.endsWith('.md') ? 'text/markdown' : 'application/json' }))
+  a.href = URL.createObjectURL(new Blob([text], { type: name.endsWith('.md') ? 'text/markdown' : name.endsWith('.csv') ? 'text/csv' : 'application/json' }))
   a.download = name
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)

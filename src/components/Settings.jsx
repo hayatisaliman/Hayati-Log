@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { Icon, IconPicker, isEmoji } from './icons.jsx'
-import { COLORS, COLOR_NAMES, averageCycle, cycleHistory, cycleLen, periodLen, DEFAULT_PALETTE, NOTE_COLOR_NAMES, DEFAULT_NOTE_COLORS, hueName, ACCENT_USES, noteBgDefault, DEFAULT_CHECK_COLOR, MEMO_COLOR_NAMES, DEFAULT_MEMO_COLORS, DEFAULT_NOTE_BG_COLORS, DEFAULT_MENUBAR_COLORS } from '../lib/schema.js'
+import { COLORS, COLOR_NAMES, averageCycle, cycleHistory, cycleLen, periodLen, DEFAULT_PALETTE, NOTE_COLOR_NAMES, DEFAULT_NOTE_COLORS, hueName, ACCENT_USES, noteBgDefault, DEFAULT_CHECK_COLOR, DEFAULT_NOTE_BG_COLORS, DEFAULT_MENUBAR_COLORS, DEFAULT_START_LABEL, marksList } from '../lib/schema.js'
 import { ColorSwatch } from './ColorPicker.jsx'
 import { Chip } from './cells.jsx'
 import { DatePicker } from './DatePicker.jsx'
@@ -8,8 +8,26 @@ import { CatIcon } from './TimeBlocks.jsx'
 import { DAY_NAMES, fmtClock, isoOf, longDate } from '../lib/time.js'
 import { update, replaceData, useStatus, listBackups, readBackup, exportData, fullData, MOD } from '../lib/store.js'
 import { monthMarkdown, quarterMarkdown } from './reportMarkdown.js'
+import { dailyLogCsv } from '../lib/csv.js'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+
+const OpenCard = createContext({ open: null, setOpen: () => {} })
+
+// SetCard — collapsible Settings card; opening one closes the others
+function SetCard({ id, title, meta, children }) {
+  const { open, setOpen } = useContext(OpenCard)
+  const on = open === id
+  return (
+    <section className={`card set-card ${on ? 'open' : ''}`}>
+      <button className="card-head set-card-head" aria-expanded={on} onClick={() => setOpen(on ? null : id)}>
+        <h3>{title}</h3>{meta && <span className="section-meta">{meta}</span>}
+        <span className="set-chev"><Icon name="chevron" size={14} /></span>
+      </button>
+      {on && <div className="set-card-body">{children}</div>}
+    </section>
+  )
+}
 
 export function Settings({ data, toast, now }) {
   const status = useStatus()
@@ -17,6 +35,7 @@ export function Settings({ data, toast, now }) {
   const [newStart, setNewStart] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [confirmDel, setConfirmDel] = useState(null)
+  const [open, setOpen] = useState(null)
   const [drag, setDrag] = useState(null)
   const [drop, setDrop] = useState(null)
   const [armed, setArmed] = useState(null)
@@ -49,6 +68,7 @@ export function Settings({ data, toast, now }) {
       if (where) toast(`Exported to ${where.replace(/^\/Users\/[^/]+/, '~')}`)
     } catch (e) { toast(`Export failed: ${e.message || e}`) }
   }
+  const exportCsv = () => saveFile(dailyLogCsv(data, now), `hayati-log-daily-log-${new Date().toISOString().slice(0, 10)}.csv`)
   const exportJson = async () => saveFile(JSON.stringify(await fullData(), null, 1),`hayati-log-${new Date().toISOString().slice(0, 10)}.json`)
 
   const importData = (next, label) => {
@@ -62,11 +82,11 @@ export function Settings({ data, toast, now }) {
   }
 
   return (
+    <OpenCard.Provider value={{ open, setOpen }}>
     <div className="settings">
       <div className="view-head"><h1 className="view-title">Settings</h1></div>
 
-      <section className="card">
-        <div className="card-head"><h3>Cycle</h3><span className="section-meta">The Cycle column counts days from the latest start</span></div>
+      <SetCard id="cycle" title={<>Cycle</>} meta={<>The Cycle column counts days from the latest start</>}>
         <div className="cycle-list">
           {[...cycleHistory(s)].reverse().map((c) => (
             <div key={c.start} className="cycle-row">
@@ -91,14 +111,13 @@ export function Settings({ data, toast, now }) {
           <span className="set-label">days</span>
         </div>
         <p className="help">A cycle longer than the usual length counts as late. Up to 2 days shorter is on time, and anything shorter than that is early.</p>
-        <div className="inline-form">
+        <div className="inline-form end">
           <DatePicker value={newStart} onChange={setNewStart} placeholder="Choose a start date" />
           <button className="btn" disabled={!newStart} onClick={() => { update((x) => { if (!x.settings.cycleStarts.includes(newStart)) x.settings.cycleStarts = [...x.settings.cycleStarts, newStart].sort() }); setNewStart('') }}>Add Start</button>
         </div>
-      </section>
+      </SetCard>
 
-      <section className="card">
-        <div className="card-head"><h3>Colours</h3></div>
+      <SetCard id="colours" title={<>Colours</>}>
         <div className="mini-head">General app</div>
         <div className="palette-grid">
           {COLOR_NAMES.map((n) => {
@@ -111,7 +130,7 @@ export function Settings({ data, toast, now }) {
             )
           })}
         </div>
-        <div className="mini-head">Notes &amp; Weekly Plan · text</div>
+        <div className="mini-head">Text</div>
         <div className="palette-grid">
           {NOTE_COLOR_NAMES.map((n) => {
             const v = s.noteColors?.[n] || DEFAULT_NOTE_COLORS[n]
@@ -123,7 +142,7 @@ export function Settings({ data, toast, now }) {
             )
           })}
         </div>
-        <div className="mini-head">Notes &amp; Weekly Plan · text background</div>
+        <div className="mini-head">Text Background</div>
         <div className="palette-grid">
           {NOTE_COLOR_NAMES.map((n) => {
             const v = s.noteBgColors?.[n] || (s.noteColors?.[n] ? noteBgDefault(s.noteColors[n]) : DEFAULT_NOTE_BG_COLORS[n])
@@ -142,19 +161,7 @@ export function Settings({ data, toast, now }) {
             <span className="palette-label"><b>{hueName(s.checkColor || DEFAULT_CHECK_COLOR)}</b><small>Ticked checkboxes</small></span><span className="hex">{s.checkColor || DEFAULT_CHECK_COLOR}</span>
           </label>
         </div>
-        <div className="mini-head">Sidebar memos · background</div>
-        <div className="palette-grid">
-          {MEMO_COLOR_NAMES.map((n) => {
-            const v = s.memoColors?.[n] || DEFAULT_MEMO_COLORS[n]
-            return (
-              <label key={n} className="palette-item">
-                <ColorSwatch value={v} onChange={(c) => update((d) => { d.settings.memoColors = { ...(d.settings.memoColors || {}), [n]: COLORS[c] || c } })} />
-                <span className="palette-label"><b>{hueName(v)}</b></span><span className="hex">{v}</span>
-              </label>
-            )
-          })}
-        </div>
-        <div className="mini-head">Time-block groups · ribbon and reports</div>
+        <div className="mini-head">Menu Bar &amp; Time-Block Groups</div>
         <div className="palette-grid">
           {[['timer', 'Menu bar timer'], ['stopwatch', 'Menu bar stopwatch']].map(([k, use]) => {
             const v = s.menubarColors?.[k] || DEFAULT_MENUBAR_COLORS[k]
@@ -165,28 +172,17 @@ export function Settings({ data, toast, now }) {
               </label>
             )
           })}
-          {data.groups.map((g) => {
-            const used = data.categories.some((c) => c.group === g.id)
-            return (
-              <div key={g.id} className="palette-item group-item">
-                <ColorSwatch value={g.color} onChange={(c) => update((d) => { d.groups.find((x) => x.id === g.id).color = c })} />
-                <input className="inline-edit grow" defaultValue={g.name} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-                  onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== g.name && update((d) => { d.groups.find((x) => x.id === g.id).name = e.target.value.trim() })} />
-                <span className="hex">{COLORS[g.color] || g.color}</span>
-                <button className="group-x" title={used ? 'Move its categories to another group first' : 'Delete group'} disabled={used}
-                  onClick={() => update((d) => { d.groups = d.groups.filter((x) => x.id !== g.id) })}><Icon name="x" size={12} /></button>
-              </div>
-            )
-          })}
-          <button className="palette-item group-add" onClick={() => update((d) => { d.groups.push({ id: `g-${Math.random().toString(36).slice(2, 7)}`, name: 'New group', color: '#8a8a8a' }) })}>
-            <span className="group-add-ico"><Icon name="plus" size={12} /></span>Add group
-          </button>
+          {data.groups.map((g) => (
+            <label key={g.id} className="palette-item">
+              <ColorSwatch value={g.color} onChange={(c) => update((d) => { d.groups.find((x) => x.id === g.id).color = c })} />
+              <span className="palette-label"><b>{g.name}</b><small>Time-block group</small></span><span className="hex">{COLORS[g.color] || g.color}</span>
+            </label>
+          ))}
         </div>
-        <button className="btn" onClick={() => update((d) => { delete d.settings.palette; delete d.settings.noteColors; delete d.settings.noteBgColors; delete d.settings.checkColor; delete d.settings.memoColors; delete d.settings.menubarColors })}>Reset All Colours</button>
-      </section>
+        <div className="btn-row"><button className="btn" onClick={() => update((d) => { delete d.settings.palette; delete d.settings.noteColors; delete d.settings.noteBgColors; delete d.settings.checkColor; delete d.settings.menubarColors })}>Reset All Colours</button></div>
+      </SetCard>
 
-      <section className="card">
-        <div className="card-head"><h3>Routine</h3><span className="section-meta">Added to Day Plan's checklist</span></div>
+      <SetCard id="routine" title={<>Routine</>} meta={<>Added to {data.fields.find((f) => f.id === 'plan')?.name || 'Day Plan'}'s checklist</>}>
         {(s.routines || []).map((r) => (
           <div key={r.id} className="set-row routine-row">
             <input className="inline-edit grow" defaultValue={r.text} placeholder="e.g. Trash out" onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
@@ -195,16 +191,36 @@ export function Settings({ data, toast, now }) {
             <button className="icon-btn" title="Delete routine" onClick={() => update((d) => { d.settings.routines = d.settings.routines.filter((x) => x.id !== r.id) })}><Icon name="x" size={14} /></button>
           </div>
         ))}
-        <button className="btn add-cat" onClick={() => update((d) => { d.settings.routines = [...(d.settings.routines || []), { id: `rt-${Math.random().toString(36).slice(2, 8)}`, text: '', kind: null, days: [] }] })}>Add Routine</button>
-      </section>
+        <div className="btn-row"><button className="btn add-cat" onClick={() => update((d) => { d.settings.routines = [...(d.settings.routines || []), { id: `rt-${Math.random().toString(36).slice(2, 8)}`, text: '', kind: null, days: [] }] })}>Add Routine</button></div>
+      </SetCard>
 
-      <section className="card">
-        <div className="card-head"><h3>Time-Block Categories</h3><span className="section-meta">Quick-start buttons and Category column options. Drag to reorder.</span></div>
+      <MarksCard data={data} />
+
+      <SetCard id="time-block-groups-and-categories" title={<>Time Block</>} meta={<>Quick-start buttons and Category column options. Drag to reorder.</>}>
         <div className="set-row start-label-row">
-          <span className="set-label">Sidebar start text</span>
-          <input className="inline-edit grow" defaultValue={s.startLabel || 'Bismillah'} placeholder="Bismillah" onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-            onBlur={(e) => { const v = e.target.value.trim(); if (v !== (s.startLabel || 'Bismillah')) update((d) => { d.settings.startLabel = v || undefined }) }} />
+          <span className="set-label">Default text label on sidebar &amp; menu bar</span>
+          <input className="inline-edit grow" defaultValue={s.startLabel || DEFAULT_START_LABEL} placeholder={DEFAULT_START_LABEL} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+            onBlur={(e) => { const v = e.target.value.trim(); if (v !== (s.startLabel || DEFAULT_START_LABEL)) update((d) => { d.settings.startLabel = v && v !== DEFAULT_START_LABEL ? v : undefined }) }} />
         </div>
+        <div className="mini-head">Groups</div>
+        <div className="group-grid">
+        {data.groups.map((g) => {
+          const n = data.categories.filter((c) => c.group === g.id && !c.archived).length
+          const used = data.categories.some((c) => c.group === g.id)
+          return (
+            <div key={g.id} className="set-row tb-group-row">
+              <span className="swatch" style={{ background: COLORS[g.color] || g.color }} />
+              <input className="inline-edit grow" defaultValue={g.name} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== g.name && update((d) => { d.groups.find((x) => x.id === g.id).name = e.target.value.trim() })} />
+              <span className="muted cat-uses">{n ? `${n} categor${n > 1 ? 'ies' : 'y'}` : 'empty'}</span>
+              <button className="icon-btn" title="Delete group"
+                onClick={() => (used ? toast(`Move ${g.name}'s categories to another group first`) : update((d) => { d.groups = d.groups.filter((x) => x.id !== g.id) }))}>✕</button>
+            </div>
+          )
+        })}
+        </div>
+        <div className="btn-row"><button className="btn add-cat" onClick={() => update((d) => { d.groups.push({ id: `g-${Math.random().toString(36).slice(2, 7)}`, name: 'New group', color: '#8a8a8a' }) })}>Add Group</button></div>
+        <div className="mini-head">Categories</div>
         {active.map((c) => (
           <div key={c.id} className={`set-row cat-row ${drag === c.id ? 'dragging' : ''} ${drop?.id === c.id ? `drop-${drop.pos}` : ''}`}
             draggable={armed === c.id}
@@ -228,12 +244,13 @@ export function Settings({ data, toast, now }) {
             <button className="icon-btn" title="Remove category" onClick={() => removeCategory(c)}>✕</button>
           </div>
         ))}
-        <button className="btn add-cat" onClick={() => update((d) => { d.categories.push({ id: `c-${Math.random().toString(36).slice(2, 7)}`, emoji: '', name: 'New category', group: d.groups[0]?.id }) })}>Add Category</button>
+        <div className="btn-row"><button className="btn add-cat" onClick={() => update((d) => { d.categories.push({ id: `c-${Math.random().toString(36).slice(2, 7)}`, emoji: '', name: 'New category', group: d.groups[0]?.id }) })}>Add Category</button></div>
         {archived.length > 0 && (
           <>
             <button className={`mini-head archived-toggle ${showArchived ? 'open' : ''}`} onClick={() => setShowArchived(!showArchived)}>
-              <Icon name="chevron" size={12} />Archived ({archived.length}) · kept so old time blocks keep their names and colours
+              <Icon name="chevron" size={12} />Archived ({archived.length})
             </button>
+            <p className="help archived-help">Kept so old time blocks keep their names and colours.</p>
             {showArchived && archived.map((c) => (
               <div key={c.id} className="set-row archived">
                 <span className="swatch" style={{ background: COLORS[data.groups.find((g) => g.id === c.group)?.color] || COLORS.gray }} />
@@ -252,28 +269,29 @@ export function Settings({ data, toast, now }) {
             ))}
           </>
         )}
-      </section>
+      </SetCard>
 
       <MenuBarCard />
 
-      <section className="card">
-        <div className="card-head"><h3>Export Data</h3><span className="section-meta">Auto backup daily · last 7 kept</span></div>
+      <SetCard id="export-data" title={<>Export Data</>} meta={<>Auto backup daily · last 7 kept</>}>
         <p className="help">Everything lives in one plain JSON file on this Mac. The app automatically backs it up into <code>backups/</code> once a day and keeps the last 7 days.</p>
         <code className="path">{status.file || '—'}</code>
-        <div className="inline-form">
-          <button className="btn" onClick={exportJson}>Export JSON</button>
+        <div className="inline-form end">
+          <button className="btn" onClick={exportCsv} title="Every day as a spreadsheet row, for Excel or Google Sheets">Export CSV</button>
+          <button className="btn" onClick={exportJson} title="Your whole data file, for Restore Data">Export JSON</button>
         </div>
         <ReportExport data={data} now={now} onSave={saveFile} />
-      </section>
+      </SetCard>
 
-      <section className="card">
-        <div className="card-head"><h3>Restore Data</h3><span className="section-meta">Replaces everything · {MOD}Z to undo</span></div>
-        <BackupList onImport={(name) => readBackup(name).then((d) => importData(d, name)).catch((e) => toast(`Restore failed: ${e.message || e}`))}>
+      <SetCard id="restore-data" title={<>Restore Data</>} meta={<>Replace or delete everything · {MOD}Z to undo</>}>
+        <BackupList onImport={(name) => readBackup(name).then((d) => importData(d, name)).catch((e) => toast(`Restore failed: ${e.message || e}`))}
+          before={<DeleteAll data={data} toast={toast} />}>
           <button className="btn" onClick={() => fileRef.current.click()}>Import From File</button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = '' }} />
         </BackupList>
-      </section>
+      </SetCard>
     </div>
+    </OpenCard.Provider>
   )
 }
 
@@ -287,9 +305,11 @@ function ReportExport({ data, now, onSave }) {
   const has = new Set(data.rows.filter((r) => r.date.startsWith(year) && Object.keys(r.cells).length).map((r) => +r.date.slice(5, 7)))
   const months = [...has].sort((a, b) => b - a)
   const quarters = [4, 3, 2, 1].filter((q) => [1, 2, 3].some((i) => has.has((q - 1) * 3 + i)))
-  const first = months[0] ? `m${months[0]}` : quarters[0] ? `q${quarters[0]}` : ''
-  const [pick, setPick] = useState(first)
-  const value = (pick.startsWith('m') ? has.has(+pick.slice(1)) : quarters.includes(+pick.slice(1))) ? pick : first
+  const [kind, setKind] = useState('m')
+  const list = kind === 'm' ? months : quarters
+  const [pick, setPick] = useState(null)
+  const n = list.includes(pick) ? pick : list[0] ?? null
+  const value = n == null ? '' : `${kind}${n}`
   const run = () => {
     if (!value) return
     const n = +value.slice(1)
@@ -306,11 +326,17 @@ function ReportExport({ data, now, onSave }) {
         <select className="select" value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
-        <select className="select" value={value} onChange={(e) => setPick(e.target.value)} aria-label="Report" disabled={!first}>
-          {!first && <option value="">No data this year</option>}
-          {months.length > 0 && <optgroup label="Monthly report">{months.map((m) => <option key={m} value={`m${m}`}>{MONTH_NAMES[m - 1]}</option>)}</optgroup>}
-          {quarters.length > 0 && <optgroup label="Quarterly report">{quarters.map((q) => <option key={q} value={`q${q}`}>Q{q} · {MONTH_NAMES[(q - 1) * 3].slice(0, 3)} – {MONTH_NAMES[(q - 1) * 3 + 2].slice(0, 3)}</option>)}</optgroup>}
+        <select className="select" value={kind} onChange={(e) => { setKind(e.target.value); setPick(null) }} aria-label="Report type">
+          <option value="m">Monthly</option>
+          <option value="q">Quarterly</option>
         </select>
+        <select className="select" value={n ?? ''} onChange={(e) => setPick(+e.target.value)} aria-label={kind === 'm' ? 'Month' : 'Quarter'} disabled={n == null}>
+          {n == null && <option value="">No data this year</option>}
+          {kind === 'm'
+            ? months.map((m) => <option key={m} value={m}>{MONTH_NAMES[m - 1]}</option>)
+            : quarters.map((q) => <option key={q} value={q}>Q{q} · {MONTH_NAMES[(q - 1) * 3].slice(0, 3)} – {MONTH_NAMES[(q - 1) * 3 + 2].slice(0, 3)}</option>)}
+        </select>
+        <div className="grow" />
         <button className="btn" disabled={!value} onClick={run}>Export Markdown</button>
       </div>
     </>
@@ -319,7 +345,7 @@ function ReportExport({ data, now, onSave }) {
 
 const fmtSize = (b) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`)
 
-function BackupList({ onImport, children }) {
+function BackupList({ onImport, before, children }) {
   const [list, setList] = useState(null)
   const [sel, setSel] = useState(null)
   useEffect(() => { listBackups().then((l) => setList([...l].sort((a, b) => b.modified - a.modified))).catch(() => setList([])) }, [])
@@ -341,11 +367,70 @@ function BackupList({ onImport, children }) {
         })}
         {list && !list.length && <div className="empty-note">No backups yet. The first one is made the first time the app saves on a new day.</div>}
       </div>
-      <div className="inline-form">
-        <button className="btn" disabled={!sel} onClick={() => onImport(sel)}>Restore</button>
+      <div className="inline-form end">
+        {before}
         {children}
+        <button className="btn" disabled={!sel} onClick={() => onImport(sel)}>Restore</button>
       </div>
     </>
+  )
+}
+
+// DeleteAll — clears days, notes, memos, plans and chores; keeps columns, categories, colours and settings
+function DeleteAll({ data, toast }) {
+  const [armed, setArmed] = useState(false)
+  const run = () => {
+    if (!armed) return setArmed(true)
+    setArmed(false)
+    const { cycleStarts, periodEnds, routines, ...settings } = data.settings
+    replaceData({ ...data, sample: false, settings: { ...settings, cycleStarts: [] }, rows: [], notes: [], noteGroups: [], memos: [], chores: [], weeks: {}, weekMonths: [], months: [], monthGoals: {} })
+    toast(`Deleted all data · ${MOD}Z to undo`)
+  }
+  return <button className={`btn danger-outline ${armed ? 'on' : ''}`} onBlur={() => setArmed(false)} onClick={run}>{armed ? 'Click again to delete everything' : 'Delete All Data'}</button>
+}
+
+// MarksCard — Stuck day is fixed; other marks are the user's own and show under Patterns
+function MarksCard({ data }) {
+  const marks = marksList(data.settings)
+  const cols = data.fields.filter((f) => ['text', 'todo', 'mixed'].includes(f.type))
+  const save = (fn) => update((d) => { const list = marksList(d.settings).map((m) => ({ ...m })); fn(list); d.settings.marks = list })
+  const patch = (id, p) => save((l) => { Object.assign(l.find((m) => m.id === id), p) })
+  return (
+    <SetCard id="pattern-marks" title={<>Pattern Marks</>} meta={<>Count anything on Daily Log by emoji, like headaches or holidays</>}>
+      {marks.map((m) => (
+        <div key={m.id} className="set-row mark-row">
+          {m.id === 'stuck'
+            ? <span className="grow mark-fixed">{m.label}</span>
+            : <input className="inline-edit grow" defaultValue={m.label} placeholder="Label" onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== m.label) patch(m.id, { label: v }) }} />}
+          <select className="select" value={m.field || ''} onChange={(e) => patch(m.id, { field: e.target.value })} aria-label="Column">
+            <option value="">Any column</option>
+            {cols.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+          <EmojiList list={m.emojis || []} set={(emojis) => patch(m.id, { emojis })} />
+          {m.id === 'stuck'
+            ? <span className="mark-spacer" />
+            : <button className="icon-btn" title="Remove mark" onClick={() => save((l) => { l.splice(l.findIndex((x) => x.id === m.id), 1) })}>✕</button>}
+        </div>
+      ))}
+      <div className="btn-row"><button className="btn add-cat" onClick={() => save((l) => { l.push({ id: `mk-${Math.random().toString(36).slice(2, 8)}`, label: 'New mark', field: '', emojis: [] }) })}>Add Mark</button></div>
+    </SetCard>
+  )
+}
+
+function EmojiList({ list, set }) {
+  const [adding, setAdding] = useState(false)
+  const commit = (v) => { const e = v.trim(); setAdding(false); if (e && !list.includes(e)) set([...list, e]) }
+  return (
+    <span className="mark-list">
+      {list.map((e) => (
+        <span key={e} className="mark-chip">{e}<button className="chip-x" title="Remove" onClick={() => set(list.filter((x) => x !== e))}><Icon name="x" size={11} /></button></span>
+      ))}
+      {adding
+        ? <input autoFocus className="inline-edit mark-add" maxLength={8} placeholder="emoji"
+            onKeyDown={(e) => { if (e.key === 'Enter') commit(e.currentTarget.value); if (e.key === 'Escape') setAdding(false) }} onBlur={(e) => commit(e.target.value)} />
+        : <button className="icon-btn" title="Add emoji" onClick={() => setAdding(true)}><Icon name="plus" size={14} /></button>}
+    </span>
   )
 }
 
@@ -388,14 +473,13 @@ function MenuBarCard() {
   if (login == null) return null
   const change = (on) => { setLogin(on); import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_launch_at_login', { on })) }
   return (
-    <section className="card">
-      <div className="card-head"><h3>Menu Bar</h3><span className="section-meta">Note, stopwatch and timer</span></div>
+    <SetCard id="menu-bar" title={<>Menu Bar</>} meta={<>Note, stopwatch and timer</>}>
       <p className="help">The menu bar stopwatch starts, pauses and stops today's Time Blocks. Closing this window keeps the menu bar running. Quit from any menu bar item.</p>
       <div className="inline-form">
         <Toggle on={login} onChange={change} />
         <span className="set-label">Open at login</span>
       </div>
-    </section>
+    </SetCard>
   )
 }
 

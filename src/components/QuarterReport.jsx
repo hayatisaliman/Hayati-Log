@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { COLORS, blockEnd, cycleHistory, cycleInfo } from '../lib/schema.js'
+import { COLORS, blockEnd, cycleHistory, cycleInfo, marksList } from '../lib/schema.js'
+import { markedOn } from '../lib/procrastination.js'
 import { MONTHS, daysInMonth, fmtClock, fmtDuration, pad } from '../lib/time.js'
 import { avg, sleepOn, clockWindow, inWindow } from '../lib/report.js'
 import { groupShares } from './TimeBlocks.jsx'
@@ -133,6 +134,11 @@ export function QuarterReport({ data, now }) {
       <section className="card">
         <div className="card-head"><h3>State mix</h3><span className="section-meta">Share of tagged days in each quarter</span></div>
         <StateMix stats={stats} bind={bind} />
+      </section>
+
+      <section className="card">
+        <div className="card-head"><h3>Pattern Marks</h3><span className="section-meta">Days each mark showed up in each quarter</span></div>
+        <MarkTable data={data} stats={stats} rowOf={rowOf} now={now} />
       </section>
       {tipEl}
     </div>
@@ -350,6 +356,41 @@ function MonthBars({ data, year, now, rowOf, work, rest, bind }) {
         })}
         {QUARTERS.map((q) => <text key={q} className="lc-tick q-axis" x={L + slot * ((q - 1) * 3 + 1.5)} y={H - 8} textAnchor="middle">{qLabel(q)}</text>)}
       </svg>
+    </div>
+  )
+}
+
+// MarkTable — Pattern Marks from Settings counted per quarter, laid out like By cycle phase
+function MarkTable({ data, stats, rowOf, now }) {
+  const marks = marksList(data.settings).filter((m) => m.emojis?.length)
+  if (!marks.length) return <div className="empty-note">No Pattern Marks set up. Add them in Settings.</div>
+  const rowsOf = (s) => s.dates.filter((d) => d <= now.today).map((d) => rowOf[d]).filter(Boolean)
+  const cols = stats.map((s) => ({ q: s.q, rows: rowsOf(s), logged: s.logged, started: s.past > 0 }))
+  return (
+    <div className="phase-table-wrap">
+      <table className="phase-table mark-table">
+        <thead>
+          <tr>
+            <th />
+            {cols.map((c) => <th key={c.q} style={{ color: Q_COLORS[c.q] }}>{qLabel(c.q)}</th>)}
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Days logged</td>
+            {cols.map((c) => <td key={c.q} className={`num ${c.logged ? '' : 'zero'}`}>{c.started ? c.logged : '—'}</td>)}
+            <td className="num">{cols.reduce((t, c) => t + c.logged, 0)}</td>
+          </tr>
+          {marks.map((m, i) => (
+            <tr key={m.id} className={i ? '' : 'sep'}>
+              <td><span className="mark-emoji">{m.emojis.join(' ')}</span>{m.label}</td>
+              {cols.map((c) => { const n = c.rows.filter((r) => markedOn(r, m)).length; return <td key={c.q} className={`num ${n ? '' : 'zero'}`}>{c.started ? n : '—'}</td> })}
+              {(() => { const n = cols.reduce((t, c) => t + c.rows.filter((r) => markedOn(r, m)).length, 0); return <td className={`num ${n ? '' : 'zero'}`}>{n}</td> })()}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

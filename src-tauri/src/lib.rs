@@ -262,8 +262,8 @@ fn read_backup(app: tauri::AppHandle, name: String) -> Result<String, String> {
 fn write_export(path: String, text: String) -> Result<(), String> {
     let file = PathBuf::from(&path);
     match file.extension().and_then(|e| e.to_str()) {
-        Some("json") | Some("md") => {}
-        _ => return Err("Only .json and .md files can be exported".into()),
+        Some("json") | Some("md") | Some("csv") => {}
+        _ => return Err("Only .json, .md and .csv files can be exported".into()),
     }
     fs::write(&file, text).map_err(|e| e.to_string())
 }
@@ -300,7 +300,7 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
         .invoke_handler(tauri::generate_handler![
             load_data, save_data, load_note, save_note, data_path, list_backups, read_backup, media_dir, save_media, write_export,
-            menubar::tray_icons, menubar::tray_watch, menubar::popup_info, menubar::popup_ready, menubar::popup_result,
+            menubar::tray_icons, menubar::tray_watch, menubar::tray_label, menubar::popup_info, menubar::popup_ready, menubar::popup_result,
             menubar::note_saved, menubar::bar_state, menubar::bar_size, menubar::bar_menu, menubar::get_launch_at_login, menubar::set_launch_at_login
         ])
         .setup(|app| Ok(menubar::setup(app.handle())?))

@@ -143,14 +143,14 @@ function TagButton({ rowId, t, data }) {
   const set = cats.length || t.plan
   return (
     <>
-      <button className={`todo-tag ${set ? 'on' : ''}`} title="Category / Plan" onMouseDown={stop} onClick={open}><Icon name="tag" size={13} /></button>
+      <button className={`todo-tag ${set ? 'on' : ''}`} title="Category / Target" onMouseDown={stop} onClick={open}><Icon name="tag" size={13} /></button>
       {el && (
         <Popover anchor={el} align="right" width={220} onClose={() => { commitPlan(); setEl(null) }}>
           <div className="tag-pop" onClick={stop} onMouseDown={stop} onKeyDown={stop}>
             <div className="tag-row">
               <input autoFocus className="line-editor slim tag-search" value={q} placeholder="Category" onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && list[0]) toggle(list[0].id); if (e.key === 'Escape') setEl(null) }} />
-              <input className="line-editor slim tag-plan" value={plan} placeholder="Plan" title="Planned time, e.g. 30m or 1h" onChange={(e) => setPlan(e.target.value)} onBlur={commitPlan}
+              <input className="line-editor slim tag-plan" value={plan} placeholder="Target" title="Target time, e.g. 30m or 1h" onChange={(e) => setPlan(e.target.value)} onBlur={commitPlan}
                 onKeyDown={(e) => { if (e.key === 'Enter') { commitPlan(); setEl(null) } if (e.key === 'Escape') setEl(null) }} />
             </div>
             <div className="tag-list">

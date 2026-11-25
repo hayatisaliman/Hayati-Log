@@ -13,7 +13,8 @@ use tauri_plugin_notification::NotificationExt;
 
 use crate::data_dir;
 
-const DEFAULT_NOTE: &str = "Bismillah";
+const DEFAULT_NOTE: &str = "Start Time Log";
+const LEGACY_NOTE: &str = "Bismillah";
 const PRESETS: [(&str, u64); 4] = [("10 min", 600), ("15 min", 900), ("30 min", 1800), ("1 hour", 3600)];
 const KEEP_NOTES: usize = 15;
 
@@ -21,6 +22,7 @@ const KEEP_NOTES: usize = 15;
 #[serde(default)]
 struct Saved {
     note: String,
+    label: String,
     saved: Vec<String>,
     timer_end: Option<u64>,
     timer_dur: Option<u64>,
@@ -29,7 +31,7 @@ struct Saved {
 
 impl Default for Saved {
     fn default() -> Self {
-        Self { note: DEFAULT_NOTE.into(), saved: vec![], timer_end: None, timer_dur: None, launch_at_login: None }
+        Self { note: DEFAULT_NOTE.into(), label: DEFAULT_NOTE.into(), saved: vec![], timer_end: None, timer_dur: None, launch_at_login: None }
     }
 }
 
@@ -281,6 +283,18 @@ pub fn tray_icons<R: Runtime>(app: AppHandle<R>, icons: Vec<TrayImage>) -> Resul
     Ok(())
 }
 
+// tray_label — the sidebar start text is also the menu bar note's default; a note the user wrote stays until cleared
+#[tauri::command]
+pub fn tray_label<R: Runtime>(app: AppHandle<R>, label: String) {
+    let label = if label.trim().is_empty() { DEFAULT_NOTE.to_string() } else { label };
+    let stale = { let st = state(&app); st.saved.label != label || st.saved.note.trim().is_empty() || (st.saved.note == LEGACY_NOTE && label != LEGACY_NOTE) };
+    if !stale { return; }
+    edit(&app, |s| {
+        if s.note.trim().is_empty() || s.note == s.label || s.note == LEGACY_NOTE { s.note = label.clone(); }
+        s.label = label;
+    });
+}
+
 #[tauri::command]
 pub fn tray_watch<R: Runtime>(app: AppHandle<R>, watch: Option<Watch>, groups: Vec<Group>, colors: Colors) {
     let rebuild = {
@@ -467,7 +481,7 @@ pub fn on_menu<R: Runtime>(app: &AppHandle<R>, ev: MenuEvent) {
             let (note, saved) = { let st = state(app); (st.saved.note.clone(), st.saved.saved.clone()) };
             open_popup(app, json!({ "kind": "note", "title": "Note", "note": note, "saved": saved }));
         }
-        "note:clear" => edit(app, |s| s.note = DEFAULT_NOTE.into()),
+        "note:clear" => edit(app, |s| s.note = s.label.clone()),
         _ => {
             if let Some(cat) = id.strip_prefix("watch:cat:") {
                 emit_main(app, json!({ "type": "start", "cat": cat }));

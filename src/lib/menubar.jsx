@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { Icon } from '../components/icons.jsx'
 import { catMeta, elapsedSec, pauseRunning, resumePaused, startBlock, stopRunning, watchRow } from '../components/TimeBlocks.jsx'
 import { getData } from './store.js'
-import { DEFAULT_MENUBAR_COLORS, rolloverMinute } from './schema.js'
+import { DEFAULT_MENUBAR_COLORS, DEFAULT_START_LABEL, rolloverMinute } from './schema.js'
 import { logicalToday, nowMinutes } from './time.js'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -81,4 +81,9 @@ export function useMenubar(data, onView) {
     const t = setInterval(push, 30000)
     return () => clearInterval(t)
   }, [data])
+
+  const label = data.settings.startLabel || DEFAULT_START_LABEL
+  useEffect(() => {
+    if (isTauri) import('@tauri-apps/api/core').then(({ invoke }) => invoke('tray_label', { label }))
+  }, [label])
 }

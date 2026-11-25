@@ -1,7 +1,7 @@
-import { cellText, blockEnd } from '../lib/schema.js'
+import { cellText, blockEnd, marksList } from '../lib/schema.js'
 import { MONTHS, daysInMonth, fmtClock, fmtDuration, monthLabel, pad, toDate } from '../lib/time.js'
 import { avg, sleepOn, clockWindow, inWindow } from '../lib/report.js'
-import { procrastination } from '../lib/procrastination.js'
+import { procrastination, markedOn } from '../lib/procrastination.js'
 import { cycleSummary } from './MonthReport.jsx'
 import { quarterStats, qRange } from './QuarterReport.jsx'
 import { insights } from './Procrastination.jsx'
@@ -65,13 +65,13 @@ export function monthMarkdown(data, month, now) {
 
   const p = procrastination(rows, data, now.today)
   if (p.tasks || p.stuck.length) {
-    L.push('', '## Procrastination')
+    L.push('', '## Task Patterns')
     L.push(`- Done on the day: ${p.firstTry}/${p.tasks} tasks (${pct(p.tasks ? p.firstTry / p.tasks : null)}) · ${p.done} done in the end`)
     L.push(`- Pushed: ${p.pushed.length}${p.sent ? ` · ${p.sent} moved to Pending` : ''}${p.open ? ` · ${p.open} still open` : ''}${p.dropped ? ` · ${p.dropped} dropped` : ''}`)
     if (p.avgDelay != null) L.push(`- Average delay: ${Math.round(p.avgDelay * 10) / 10} days`)
-    L.push(`- Stuck days (☠️): ${p.stuck.length}`)
+    L.push(`- Stuck days${p.stuckLabel ? ` (${p.stuckLabel} in ${data.fields.find((f) => f.id === p.stuckField)?.name || 'any column'})` : ''}: ${p.stuck.length}`)
     if (p.pushed.length) {
-      L.push('', '### Kept pushing')
+      L.push('', '### Procrastination')
       for (const x of p.pushed.slice(0, 10)) L.push(`- ${x.text} — ${short(x.first)} → ${short(x.last)}, ${x.days} days, ${x.status}`)
     }
     const notes = insights(p)
@@ -127,6 +127,15 @@ export function quarterMarkdown(data, year, q, now) {
     L.push('', '## State mix')
     const total = tagged.reduce((a, x) => a + x.n, 0)
     for (const x of [...tagged].sort((a, b) => b.n - a.n)) L.push(`- ${x.o.name}: ${x.n} days (${pct(x.n / total)} of tags)`)
+  }
+  const marks = marksList(data.settings).filter((m) => m.emojis?.length)
+  if (marks.length) {
+    const rowsIn = (st) => st.dates.filter((d) => d <= now.today).map((d) => rowOf[d]).filter(Boolean)
+    const a = rowsIn(s)
+    const b = rowsIn(p)
+    const n = (rs, m) => rs.filter((r) => markedOn(r, m)).length
+    L.push('', '## Pattern Marks', '', `| | ${head} | ${prevHead} |`, '|---|---|---|')
+    for (const m of marks) L.push(row(`${m.emojis.join(' ')} ${m.label}`, n(a, m), n(b, m)))
   }
   return L.join('\n') + '\n'
 }
